@@ -1,7 +1,7 @@
 /* Fogón POS · trabajador de servicio
    Guarda la app para que abra rápido y sin internet.
    Nunca guarda las respuestas de Apps Script: los datos siempre van en vivo. */
-const VERSION = 'dge-v7';
+const VERSION = 'dge-v8';
 const BASE = [
   './',
   './index.html',

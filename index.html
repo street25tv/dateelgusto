@@ -233,6 +233,9 @@ h3{font-size:1rem;font-weight:700}
 .opc-h input{font-weight:700}
 .opc-g .chip input{margin:0 6px 0 0;accent-color:var(--accent)}
 .opc-g .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--fg)}
+.tramo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tramo input{width:90px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:7px 9px;font:inherit}
+#localTxt{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:8px 10px;font:inherit;width:100%}
 .card.conn{display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;border-color:var(--warn);background:var(--warn-soft)}
 .card.conn>div{flex:1 1 260px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .card.conn input{flex:1 1 160px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 12px;font:inherit}
@@ -572,7 +575,9 @@ function seed(){
 function load(){try{const s=JSON.parse(localStorage.getItem(K));if(s&&s.v===1){if(!Array.isArray(s.usuarios)||!s.usuarios.length)s.usuarios=USUARIOS_DEMO();if(s.config.bloqueo==null)s.config.bloqueo=15;s.config=Object.assign({urlCliente:'',abiertoWeb:1,confirmarWeb:0,nequi:'',daviplata:'',breb:''},s.config);return s}}catch(e){}return null}
 const OPCIONES_DEF=[{"n": "Salsas", "items": ["Salsa de tomate", "Mayonesa", "Mostaza", "Salsa de piña", "Salsa rosada", "+Salsa BBQ", "+Salsa de ajo", "+Salsa tártara", "+Picante"], "cats": ["perros", "salchi", "hamb", "salva", "pepitos", "chuzos", "mazorcas", "sandw", "platos"]}, {"n": "Vegetales", "items": ["Cebolla", "Lechuga", "Tomate", "+Repollo", "+Pepinillos"], "cats": ["perros", "hamb", "pepitos", "sandw"]}, {"n": "Toppings", "items": ["Papita ripio", "Queso costeño", "+Huevo de codorniz"], "cats": ["perros", "salchi", "salva", "mazorcas"]}]; // grupos de salsas, vegetales… que el cliente puede quitar o poner
 let S=load()||seed();
-function asegurarOpciones(){if(!Array.isArray(S.config.opciones))S.config.opciones=JSON.parse(JSON.stringify(OPCIONES_DEF))}
+function asegurarOpciones(){if(!Array.isArray(S.config.opciones))S.config.opciones=JSON.parse(JSON.stringify(OPCIONES_DEF));
+  if(!Array.isArray(S.config.tramos)||!S.config.tramos.length)S.config.tramos=[{km:2,c:3000},{km:5,c:5000},{km:8,c:8000}];
+  if(S.config.ciudad==null)S.config.ciudad='';if(S.config.envioGratis==null)S.config.envioGratis=0;if(S.config.local===undefined)S.config.local=null}
 asegurarOpciones();
 
 /* ---------- sincronización con Google Sheets (Apps Script) ---------- */
@@ -629,7 +634,7 @@ function aplicar(st){
   S.reservas=st.reservas.map(r=>({...r,t:+r.t,personas:+r.personas||1,mesaId:r.mesaId||null}));
   if(Array.isArray(st.usuarios)&&st.usuarios.length)S.usuarios=st.usuarios.map(u=>({id:String(u.id),nombre:String(u.nombre),rol:u.rol,pinHash:u.pinHash,activo:!!u.activo}));
   const c=st.config||{};
-  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones'].forEach(k=>{
+  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones','local','ciudad','tramos','envioGratis'].forEach(k=>{
     if(c[k]===undefined)return;if(c[k]===''&&typeof S.config[k]==='number')return;S.config[k]=c[k]});
   asegurarOpciones();
   S.turno=+c.turno||S.turno;S.contado=c.contado||'';S.seq=(+c.seqComanda||100)+1;S.num=(+c.numOrden||0)+1;
@@ -991,7 +996,7 @@ function vReparto(){
     <footer><span class="pd-t">${money(total(o))}</span>${cobroTxt(o)}</footer>
     ${o.estado!=='pagada'&&o.pagaCon?`<div class="small">Paga con ${money(o.pagaCon)} · lleva ${money(o.pagaCon-total(o))} de cambio</div>`:''}
     ${acts?`<div class="row">${acts(o)}</div>`:''}</article>`;
-  const links=o=>`${o.direccion?`<a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.direccion)}" target="_blank" rel="noopener">Mapa</a>`:''}${tel(o)?`<a class="btn sm" href="tel:${tel(o)}">Llamar</a><a class="btn sm" href="https://wa.me/57${tel(o).slice(-10)}" target="_blank" rel="noopener">WhatsApp</a>`:''}`;
+  const links=o=>`${o.lat&&o.lng?`<a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lng}" target="_blank" rel="noopener">Ruta</a>`:o.direccion?`<a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.direccion)}" target="_blank" rel="noopener">Mapa</a>`:''}${tel(o)?`<a class="btn sm" href="tel:${tel(o)}">Llamar</a><a class="btn sm" href="https://wa.me/57${tel(o).slice(-10)}" target="_blank" rel="noopener">WhatsApp</a>`:''}`;
   const col=(t,xs,acts,vacio)=>`<div class="kcol"><div class="kcol-h"><h3>${t}</h3><span class="count">${xs.length}</span></div>${xs.map(o=>card(o,acts)).join('')||`<p class="empty">${vacio}</p>`}</div>`;
   return `<div class="bar"><span class="muted small">${hechos} entregados en el turno${todos?'':' por ti'}</span></div>
   <div class="kanban">${col('Listos para salir',listos,o=>`<button class="btn primary" data-act="salir" data-id="${o.id}">Salgo con este pedido</button>`,'Nada listo todavía')}
@@ -1177,7 +1182,16 @@ function vConfig(){
         <textarea data-opc="${i}:items" rows="2" aria-label="Opciones de ${esc(g.n)}">${esc((g.items||[]).join(', '))}</textarea>
         <div class="chips">${S.cats.map(k=>`<label class="chip ${(g.cats||[]).includes(k.id)?'on':''}"><input type="checkbox" data-opc="${i}:cat:${esc(k.id)}" ${(g.cats||[]).includes(k.id)?'checked':''}>${esc(k.n)}</label>`).join('')}</div></div>`).join('')}
       <button class="btn" data-act="opcAdd" style="align-self:flex-start">+ Agregar grupo</button></section>
-    <section class="card"><h3>Zonas de domicilio</h3>${c.zonas.map(z=>`<div class="pay-row"><span>${esc(z.n)}</span><span>${money(z.c)}</span></div>`).join('')}</section>
+    <section class="card"><div class="bar"><h3>Valor del domicilio</h3>${c.local&&c.local.lat?'<span class="pill ok">Por distancia</span>':'<span class="pill warn">Falta ubicación</span>'}</div>
+      <p class="small muted">El cliente usa su ubicación o escribe la dirección, y el sistema calcula los km por calle desde el local y cobra según estos tramos.</p>
+      <div class="field"><span>Ubicación del local</span>${c.local&&c.local.lat?`<div class="small"><b>${(+c.local.lat).toFixed(5)}, ${(+c.local.lng).toFixed(5)}</b> · <a href="https://www.google.com/maps/search/?api=1&query=${c.local.lat},${c.local.lng}" target="_blank" rel="noopener">ver en el mapa</a></div>`:'<div class="small" style="color:var(--warn)">Sin ubicación: los clientes eligen zona a mano.</div>'}
+        <div class="row"><button class="btn sm primary" data-act="localGps">Usar la ubicación de este equipo</button></div>
+        <input id="localTxt" placeholder="O pega un enlace de Google Maps o coordenadas: 10.9878, -74.7889"><button class="btn sm" data-act="localTxt">Guardar ubicación pegada</button></div>
+      ${f('ciudad','Ciudad (para buscar las direcciones escritas)')}
+      <div class="field"><span>Tramos</span>${(c.tramos||[]).map((t,i)=>`<div class="tramo"><span>Hasta</span><input type="number" inputmode="decimal" step="0.5" data-tramo="${i}:km" value="${t.km}" aria-label="Kilómetros"><span>km</span><input type="number" inputmode="numeric" step="500" data-tramo="${i}:c" value="${t.c}" aria-label="Valor"><button class="btn sm ghost" data-act="tramoDel" data-id="${i}" aria-label="Quitar tramo">×</button></div>`).join('')}
+        <button class="btn sm" data-act="tramoAdd" style="align-self:flex-start">+ Agregar tramo</button>
+        <span class="small muted">Más allá del último tramo no se hacen domicilios.</span></div>
+      ${f('envioGratis','Domicilio gratis en pedidos desde (0 = nunca)','number')}</section>
     <section class="card"><div class="bar"><h3>App en este equipo</h3>${instalada()?'<span class="pill ok">Instalada</span>':''}</div>
       ${instalada()?'<p class="small muted">Estás usando la app instalada. Se abre desde su ícono, a pantalla completa, y funciona aunque se vaya el internet.</p>'
       :INSTALAR?'<p class="small muted">Instálala para abrirla desde un ícono, a pantalla completa y sin barra del navegador.</p><button class="btn primary" data-act="instalar">Instalar app</button>'
@@ -1301,6 +1315,14 @@ const ACT={
     if(!o.items.some(l=>l.env)){S.ordenes=S.ordenes.filter(x=>x!==o);save();ACT.back();toast('Pedido descartado: no se había enviado nada');return}
     U.modal={type:'anular',oid:o.id};renderModal()},
   motivoChip:id=>{const t=document.getElementById('motivoTxt');if(t)t.value=id},
+  localGps:()=>{if(!navigator.geolocation){toast('Este equipo no da la ubicación','bad');return}toast('Tomando la ubicación… quédate en el local');
+    navigator.geolocation.getCurrentPosition(p=>{S.config.local={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6)};save();render();toast('Ubicación del local guardada (precisión '+Math.round(p.coords.accuracy)+' m)')},
+      ()=>toast('No se pudo tomar la ubicación. Revisa el permiso del navegador.','bad'),{enableHighAccuracy:true,timeout:20000,maximumAge:0})},
+  localTxt:()=>{const v=(document.getElementById('localTxt')?.value||'');const m=v.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||v.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    if(!m){toast('No encontré coordenadas. Pega un enlace de Google Maps que tenga @lat,lng o escribe "10.98, -74.78"','bad');return}
+    S.config.local={lat:+(+m[1]).toFixed(6),lng:+(+m[2]).toFixed(6)};save();render();toast('Ubicación del local guardada')},
+  tramoAdd:()=>{const t=S.config.tramos;const u=t[t.length-1]||{km:0,c:0};t.push({km:u.km+2,c:u.c+2000});save();render()},
+  tramoDel:id=>{if(S.config.tramos.length<=1){toast('Debe quedar al menos un tramo','bad');return}S.config.tramos.splice(+id,1);save();render()},
   opcAdd:()=>{S.config.opciones.push({n:'Nuevo grupo',items:[],cats:[]});save();render()},
   opcDel:id=>{S.config.opciones.splice(+id,1);save();render()},
   rechazoChip:id=>{const t=document.getElementById('rechazoTxt');if(t)t.value=id},
@@ -1437,6 +1459,7 @@ document.addEventListener('input',e=>{
   if(t.id==='recibido'&&U.modal){U.modal.recibido=t.value;const o=ord(U.modal.oid);const tt=total(o);const pagar=tt+Math.round(tt*U.modal.prop/100/100)*100;document.getElementById('cambio').innerHTML=cambioHTML(+t.value.replace(/\D/g,''),pagar)}
   if(t.id==='ref'&&U.modal)U.modal.ref=t.value;
   if(t.id==='contado'){S.contado=t.value;save();const ps=pagadasTurno().filter(o=>o.pago.metodo==='efectivo');const esp=S.config.base+ps.reduce((a,o)=>a+o.pago.total+o.pago.propina,0);document.getElementById('dif').innerHTML=difHTML(esp,+t.value.replace(/\D/g,''))}
+  if(t.dataset.tramo){const [i,k]=t.dataset.tramo.split(':');const x=S.config.tramos[+i];if(x){x[k]=+t.value||0;S.config.tramos.sort((a,b)=>a.km-b.km);save()}}
   if(t.dataset.opc&&t.type!=='checkbox'){const [i,k]=t.dataset.opc.split(':');const g=S.config.opciones[+i];if(g){if(k==='n')g.n=t.value;if(k==='items')g.items=t.value.split(',').map(x=>x.trim()).filter(Boolean);save()}}
   if(t.dataset.cfg){const k=t.dataset.cfg;S.config[k]=t.type==='checkbox'?(t.checked?1:0):t.type==='number'?(+t.value||0):t.value;save();if(k==='nombre')document.getElementById('brandSub').textContent=t.value}
 });
