@@ -411,15 +411,15 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
     <div class="brand"><img class="brand-logo" src="logo.png" alt=""><div><b>Date el Gusto</b><span id="brandSub">Punto de venta</span></div></div>
     <nav class="nav" id="nav" aria-label="Módulos"></nav>
     <div class="side-foot">
-      <span>Datos de ejemplo guardados en este navegador.</span>
-      <button data-act="reset">Restablecer datos de ejemplo</button>
+      <span>Datos guardados en este equipo.</span>
+      <button data-act="reset">Borrar todo y empezar de cero</button>
     </div>
   </aside>
   <main class="main">
     <header class="top">
       <div><h1 id="title">Mesas</h1><div class="sub" id="subtitle"></div></div>
       <div class="top-r">
-        <span class="pill" id="net">Modo demo</span>
+        <span class="pill" id="net">Solo este equipo</span>
         <span class="clock" id="clock"></span>
         <button class="me" id="me" data-act="bloquear" title="Bloquear y cambiar de usuario"></button>
       </div>
@@ -433,7 +433,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
-const K='dge_pos_v1';
+const K='dge_pos_v2';
 const MIN=60000;
 const fmt=new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0});
 const money=n=>fmt.format(Math.round(n||0));
@@ -452,13 +452,7 @@ const MET={efectivo:'Efectivo',nequi:'Nequi',daviplata:'DaviPlata',breb:'Bre-B',
 const METC={efectivo:'#3E7D4F',nequi:'#7A1FA2',daviplata:'#D52B1E',breb:'#0B5CAD',tarjeta:'#33424A'};
 const ROL_N={admin:'Administrador',mesero:'Mesero',cocina:'Cocina',caja:'Caja'};
 const USUARIOS_DEMO=()=>[
-  {id:'u-admin',nombre:'Administrador',rol:'admin',pinHash:'fbe24b189c294fe750d687fcfb6aef9439ff1c06d046d98fac5cf59a41c16948',activo:true},
-  {id:'u-carlos',nombre:'Carlos',rol:'mesero',pinHash:'362bf4bb333f1668908e459ef027df453ea6b5725aed28fb18adf65708d2ad21',activo:true},
-  {id:'u-daniela',nombre:'Daniela',rol:'mesero',pinHash:'8127c11fbf08c93a2eff64a4fd7f99d9ff5bacad8d7df4403102bf1cd76ca31f',activo:true},
-  {id:'u-yeison',nombre:'Yeison',rol:'mesero',pinHash:'a5a88fe8939219cc12beb04c0c5ddc2d85eaed56f7e50f6aeba05082b710c643',activo:true},
-  {id:'u-luz',nombre:'Luz Mery',rol:'mesero',pinHash:'ba4eaab38cb8402351c98c0095040af0f92cad6f65aa9b3e1f81af9aaa7a07c2',activo:true},
-  {id:'u-cocina',nombre:'Cocina',rol:'cocina',pinHash:'d294be5ac28a8c9758b83795ba008eb176b59e4064b12dac01cffc5f68ba117d',activo:true},
-  {id:'u-caja',nombre:'Caja',rol:'caja',pinHash:'255876cffef13bff00d042f6a219a83823d586e034c75acc53c3f5450552e086',activo:true}
+  {id:'u-admin',nombre:'Administrador',rol:'admin',pinHash:'fbe24b189c294fe750d687fcfb6aef9439ff1c06d046d98fac5cf59a41c16948',activo:true}
 ];
 const RES_EST={pendiente:['Por confirmar','warn'],confirmada:['Confirmada','info'],llego:['En mesa','ok'],no_show:['No llegó','bad'],cancelada:['Cancelada','']};
 
@@ -553,50 +547,10 @@ function seed(){
   ];
   const mesas=[];
   [4,4,4,4].forEach((s,i)=>mesas.push({id:'M'+(i+1),nombre:String(i+1),zona:'Salón',sillas:s}));
-  const meseros=['Carlos','Daniela','Yeison','Luz Mery'];
-  let seq=101,num=1; const ordenes=[],comandas=[];
-  const line=(pid,cant,env=true,nota='')=>{const p=productos.find(x=>x.id===pid);return{id:uid('l'),pid,nombre:p.nombre,precio:p.precio,cant,nota,env,est:p.est}};
-  const mk=o=>{o.id=uid('o');o.num=num++;o.estado='abierta';o.cuentaPedida=!!o.cuentaPedida;o.entrega=o.entrega||'pendiente';ordenes.push(o);return o};
-  const cmd=(o,est,estado,ago,listoAgo)=>{const items=o.items.filter(l=>l.est===est&&l.env).map(l=>({nombre:l.nombre,cant:l.cant,nota:l.nota}));if(items.length)comandas.push({id:uid('c'),num:seq++,ordenId:o.id,est,items,estado,t:T-ago*MIN,tListo:listoAgo!=null?T-listoAgo*MIN:null})};
-
-  // historial del turno (cobrado)
-  const metodos=['efectivo','efectivo','efectivo','efectivo','nequi','nequi','nequi','tarjeta','tarjeta','daviplata','breb'];
-  for(let i=26;i>=1;i--){
-    const tPay=T-(i*26+Math.floor(r()*14))*MIN; const n=1+Math.floor(r()*4); const items=[];
-    for(let k=0;k<n;k++){const p=productos[Math.floor(r()*productos.length)];const ex=items.find(l=>l.pid===p.id);if(ex)ex.cant++;else items.push(line(p.id,1+Math.floor(r()*2)))}
-    const tipo=r()<0.75?'mesa':(r()<0.6?'domicilio':'llevar');
-    const tot=items.reduce((a,l)=>a+l.precio*l.cant,0);
-    const o=mk({tipo,mesaId:tipo==='mesa'?mesas[Math.floor(r()*mesas.length)].id:null,mesero:meseros[Math.floor(r()*4)],cliente:tipo==='mesa'?'':['Paola','Luis','Marcela','Andrés'][Math.floor(r()*4)],items,creada:tPay-40*MIN,canal:tipo==='mesa'?'Salón':'WhatsApp'});
-    o.estado='pagada';o.entrega='entregado';o.pago={metodo:metodos[Math.floor(r()*metodos.length)],total:tot,propina:tipo==='mesa'&&r()<0.6?Math.round(tot*0.1/100)*100:0,t:tPay};
-  }
-  // cuentas abiertas
-  const o1=mk({tipo:'mesa',mesaId:'M2',mesero:'Carlos',creada:T-35*MIN,canal:'Salón',items:[line('perro-casa',2),line('salchi-casa',1),line('coca-15',1)]});
-  cmd(o1,'cocina','listo',34,4); cmd(o1,'barra','entregado',34,30);
-  const o2=mk({tipo:'llevar',mesero:'Daniela',cliente:'Pedro',tel:'',creada:T-12*MIN,canal:'Mostrador',items:[line('hamb-casa',1),line('hamb-doble',1,true,'Sin cebolla'),line('coca-400',2)]});
-  cmd(o2,'cocina','prep',11); cmd(o2,'barra','listo',11,8);
-  const o3=mk({tipo:'mesa',mesaId:'M4',mesero:'Yeison',creada:T-58*MIN,canal:'Salón',cuentaPedida:true,items:[line('salva-familiar',1),line('cuatro-15',1)]});
-  cmd(o3,'cocina','entregado',56,40); cmd(o3,'barra','entregado',56,52);
-  const o5=mk({tipo:'mesa',mesaId:'M3',mesero:'QR',creada:T-2*MIN,canal:'Carta QR',items:[line('chuzo-casa',1),line('hit-400',1,true,'Bien frío')]});
-  cmd(o5,'cocina','nuevo',2); cmd(o5,'barra','nuevo',2);
-  const o6=mk({tipo:'domicilio',mesero:'Carlos',cliente:'Andrea Gómez',tel:'300 555 0142',direccion:'Cra 15 # 22-40, apto 302',zona:'Zona 2 · 2 a 5 km',creada:T-9*MIN,canal:'WhatsApp',items:[line('salchi-mixta',1),line('mazorca-casa',1),line('coca-15',1),{id:uid('l'),pid:'envio',nombre:'Domicilio Zona 2',precio:5000,cant:1,nota:'',env:true,est:null}]});
-  cmd(o6,'cocina','prep',9); cmd(o6,'barra','listo',9,6);
-  const o7=mk({tipo:'llevar',mesero:'Daniela',cliente:'Jorge',tel:'',creada:T-16*MIN,canal:'Mostrador',items:[line('hamb-carne',2),line('coca-400',2)]});
-  cmd(o7,'cocina','listo',15,2); cmd(o7,'barra','listo',15,13);
-
-  const r15=x=>Math.ceil(x/(15*MIN))*15*MIN;
-  const man=new Date(T);man.setDate(man.getDate()+1);man.setHours(13,0,0,0);
-  const reservas=[
-    {id:uid('r'),nombre:'Familia Pérez',tel:'301 222 8890',personas:4,t:r15(T+50*MIN),mesaId:'M1',estado:'confirmada',nota:'Celebran grado'},
-    {id:uid('r'),nombre:'Camila Rojas',tel:'315 410 7720',personas:2,t:r15(T+125*MIN),mesaId:'M2',estado:'pendiente',nota:''},
-    {id:uid('r'),nombre:'Cumpleaños de Sofía',tel:'300 918 3301',personas:8,t:+man,mesaId:'M1',estado:'confirmada',nota:'Salvajada familiar, unir mesas 1 y 2'},
-    {id:uid('r'),nombre:'Hernán Ríos',tel:'312 774 0021',personas:4,t:r15(T-80*MIN),mesaId:'M1',estado:'no_show',nota:''}
-  ];
+  const meseros=['Administrador'];
   const config={nombre:'Date el Gusto',nit:'',direccion:'',tel:'300 337 8831',impoconsumo:0,propina:0,base:200000,bloqueo:15,urlCliente:'https://street25tv.github.io/dateelgusto/cliente.html',abiertoWeb:1,confirmarWeb:0,nequi:'302 402 0650',daviplata:'',breb:'',
     zonas:[{n:'Zona 1 · hasta 2 km',c:3000},{n:'Zona 2 · 2 a 5 km',c:5000},{n:'Zona 3 · 5 a 8 km',c:8000}]};
-  // una anulación de ejemplo para el reporte
-  const an=mk({tipo:'mesa',mesaId:'M1',mesero:'Yeison',creada:T-95*MIN,canal:'Salón',items:[line('pepito-4carnes',1),line('coca-400',1)]});
-  an.estado='anulada';an.anuladoPor='Yeison';an.autorizadoPor='Administrador';an.motivoAnulacion='Cliente se fue antes de recibir';an.anuladoEn=T-80*MIN;
-  return{v:1,cats,insumos,productos,mesas,meseros,ordenes,comandas,reservas,config,usuarios:USUARIOS_DEMO(),seq,num,turno:T-13*60*MIN,contado:''};
+  return{v:1,cats,insumos,productos,mesas,meseros,ordenes:[],comandas:[],reservas:[],config,usuarios:USUARIOS_DEMO(),seq:101,num:1,turno:Date.now(),contado:''};
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(K));if(s&&s.v===1){if(!Array.isArray(s.usuarios)||!s.usuarios.length)s.usuarios=USUARIOS_DEMO();if(s.config.bloqueo==null)s.config.bloqueo=15;s.config=Object.assign({urlCliente:'',abiertoWeb:1,confirmarWeb:0,nequi:'',daviplata:'',breb:''},s.config);return s}}catch(e){}return null}
 let S=load()||seed();
@@ -680,7 +634,7 @@ function aplicar(st){
 function beep(){try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=880;g.gain.setValueAtTime(.15,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.5);o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.5)}catch(e){}}
 function setNet(s){
   if(NET===s)return;NET=s;const el=document.getElementById('net');if(!el)return;
-  const [t,c]={demo:['Modo demo',''],ok:['Conectado','ok'],off:['Sin conexión · guardando aquí','bad']}[s];
+  const [t,c]={demo:['Solo este equipo',''],ok:['Conectado','ok'],off:['Sin conexión · guardando aquí','bad']}[s];
   el.className='pill '+c;el.textContent=t;
 }
 
@@ -704,7 +658,7 @@ function renderLock(){
   el.innerHTML=`<div class="lk"><div class="brand"><img class="brand-logo" src="logo.png" alt=""><div style="text-align:left"><b>${esc(S.config.nombre)}</b><span>Punto de venta</span></div></div>
   ${sel?`${avatar(sel)}<h2>Hola, ${esc(sel.nombre)}</h2><p style="margin:0;color:var(--side-muted)">Escribe tu PIN de 4 dígitos</p>${padHTML(LOCK.pin,'lockKey',LOCK.err)}<button class="btn link" style="color:var(--side-muted)" data-act="lockBack">No soy ${esc(sel.nombre)}</button>`
   :`<h2>¿Quién va a trabajar?</h2><div class="lk-users">${S.usuarios.filter(x=>x.activo).map(x=>`<button class="lk-u" data-act="lockSel" data-id="${x.id}">${avatar(x)}<b>${esc(x.nombre)}</b><span>${ROL_N[x.rol]||x.rol}</span></button>`).join('')}</div>
-  ${S===null?'':`<p class="small" style="color:var(--side-muted);margin:0">${API.url?'':'Modo demo · PIN: Administrador 1234, Carlos 1111, Cocina 5555, Caja 6666'}</p>`}`}</div>`;
+  ${S===null?'':`<p class="small" style="color:var(--side-muted);margin:0">${API.url?'':'PIN inicial: Administrador 1234 · cámbialo en Ajustes → Equipo'}</p>`}`}</div>`;
 }
 async function pinDigito(key,stateObj,onFull){
   if(key==='c')stateObj.pin='';else if(key==='b')stateObj.pin=stateObj.pin.slice(0,-1);else if(stateObj.pin.length<4)stateObj.pin+=key;
@@ -772,7 +726,7 @@ const I={
 const ico=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
 const NAV=[['mesas','Mesas'],['cocina','Cocina'],['caja','Caja'],['pedidos','Domicilios'],['qr','Carta QR'],['reservas','Reservas'],['inventario','Inventario'],['reportes','Reportes'],['config','Ajustes']];
 const ROLES={admin:NAV.map(n=>n[0]),mesero:['mesas','pedidos','qr','reservas'],cocina:['cocina','inventario'],caja:['mesas','caja','pedidos','reservas','reportes']};
-const TITLES={mesas:['Mesas','Plano del salón y la terraza en tiempo real'],pedido:['Tomar pedido','Agrega productos y envía la comanda'],cocina:['Cocina','Pantalla de comandas por estación'],caja:['Caja','Cobros, propinas y cuentas abiertas'],pedidos:['Domicilios y para llevar','Pedidos de WhatsApp, teléfono, mostrador y apps'],qr:['Carta QR','Lo que ve el cliente al escanear la mesa'],reservas:['Reservas','Agenda de mesas y recordatorios'],inventario:['Inventario','Insumos, recetas y costo por plato'],reportes:['Reportes','Ventas del turno y cierre de caja'],config:['Ajustes','Datos del negocio, mesas, equipo e impresión']};
+const TITLES={mesas:['Mesas','Estado de las mesas en tiempo real'],pedido:['Tomar pedido','Agrega productos y envía la comanda'],cocina:['Cocina','Pantalla de comandas por estación'],caja:['Caja','Cobros, propinas y cuentas abiertas'],pedidos:['Domicilios y para llevar','Pedidos de WhatsApp, teléfono, mostrador y apps'],qr:['Carta QR','Lo que ve el cliente al escanear la mesa'],reservas:['Reservas','Agenda de mesas y recordatorios'],inventario:['Inventario','Insumos, recetas y costo por plato'],reportes:['Reportes','Ventas del turno y cierre de caja'],config:['Ajustes','Datos del negocio, mesas, equipo e impresión']};
 
 function renderNav(){
   const allowed=ROLES[U.role];
@@ -1084,11 +1038,11 @@ function vConfig(){
   const f=(k,l,t='text')=>`<label class="field"><span>${l}</span><input data-cfg="${k}" type="${t}" value="${esc(c[k])}" ${t==='number'?'inputmode="numeric"':''}></label>`;
   const con=!!API.url;
   return `<div class="cfg">
-    <section class="card" style="grid-column:1/-1"><div class="bar"><h3>Conexión con Google Sheets</h3><span class="pill ${con?(NET==='ok'?'ok':'bad'):''}">${con?(NET==='ok'?'Conectado':'Sin conexión'):'Modo demo'}</span></div>
+    <section class="card" style="grid-column:1/-1"><div class="bar"><h3>Conexión con Google Sheets</h3><span class="pill ${con?(NET==='ok'?'ok':'bad'):''}">${con?(NET==='ok'?'Conectado':'Sin conexión'):'Solo este equipo'}</span></div>
       ${con?`<p class="small muted">Todos los equipos conectados con esta URL comparten mesas, comandas y caja. Los cambios se guardan en la hoja y se revisan cada 5 segundos. Si se cae el internet, la app sigue funcionando y sube los cambios al volver.</p>
         <div class="small" style="overflow-wrap:anywhere"><b>URL:</b> ${esc(API.url)}</div>
         <div class="row" style="max-width:420px"><button class="btn" data-act="sincronizar">Sincronizar ahora</button><button class="btn danger" data-act="desconectar">Desconectar este equipo</button></div>`
-      :`<p class="small muted">Pega la URL de la aplicación web de Apps Script (termina en /exec) y la clave que muestra la función setup. Al conectar, los datos de ejemplo se reemplazan por los de tu hoja.</p>
+      :`<p class="small muted">Pega la URL de la aplicación web de Apps Script (termina en /exec) y la clave que muestra la función setup. Al conectar, los datos de este equipo se reemplazan por los de tu hoja.</p>
         <form class="grid2" data-form="conectar"><label class="field"><span>URL de la aplicación web</span><input name="url" placeholder="https://script.google.com/macros/s/…/exec" required autocomplete="off"></label>
         <label class="field"><span>Clave de acceso</span><input name="token" required autocomplete="off"></label><button class="btn primary" style="grid-column:1/-1;justify-self:start">Conectar</button></form>
         <p class="small muted">La conexión funciona cuando la app está publicada en tu dominio (por ejemplo GitHub Pages). Esta vista previa no puede conectarse a servicios externos.</p>`}
@@ -1301,7 +1255,7 @@ const ACT={
   sincronizar:()=>{VER=null;cambios()?flush():poll();toast('Sincronizando…')},
   desconectar:()=>confirmar('Desconectar este equipo','Este equipo vuelve al modo demo. Los datos de la hoja no se tocan; puedes volver a conectar cuando quieras.','Desconectar',()=>{
     API={url:'',token:''};try{localStorage.removeItem('fogon_api')}catch(e){}MOVS=[];SNAP=null;VER=null;S=seed();save();setNet('demo');U.modal=null;render();toast('Equipo en modo demo')},true),
-  reset:()=>API.url?toast('Estás conectado a tu hoja. Desconecta este equipo para usar los datos de ejemplo.','bad'):confirmar('Restablecer datos de ejemplo','Se borran los cambios hechos en este navegador y vuelven los datos de ejemplo.','Restablecer',()=>{S=seed();save();U.modal=null;U.view=ROLES[U.role][0];U.active=null;U.qrCart=[];render();toast('Datos de ejemplo restablecidos')},true),
+  reset:()=>API.url?toast('Estás conectado a tu hoja. Desconecta este equipo para borrarlo.','bad'):confirmar('Empezar de cero','Se borran ventas, comandas, reservas, usuarios y cambios a la carta hechos en este equipo. Queda solo el Administrador (PIN 1234).','Borrar todo',()=>{S=seed();save();U.modal=null;U.view=ROLES[U.role][0];U.active=null;U.qrCart=[];render();toast('Listo: el sistema quedó en cero')},true),
   close:()=>{U.modal=null;renderModal()},
   confirmOk:()=>{U.modal?.fn?.()}
 };
