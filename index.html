@@ -227,6 +227,12 @@ h3{font-size:1rem;font-weight:700}
 /* pedidos */
 .kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
 .kanban.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.opc-g{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.opc-h{display:flex;gap:8px;align-items:center}
+.opc-h input,.opc-g textarea{flex:1;min-width:0;width:100%;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:8px 10px;font:inherit}
+.opc-h input{font-weight:700}
+.opc-g .chip input{margin:0 6px 0 0;accent-color:var(--accent)}
+.opc-g .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--fg)}
 .card.conn{display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;border-color:var(--warn);background:var(--warn-soft)}
 .card.conn>div{flex:1 1 260px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .card.conn input{flex:1 1 160px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 12px;font:inherit}
@@ -564,7 +570,10 @@ function seed(){
   return{v:1,cats,insumos,productos,mesas,meseros,ordenes:[],comandas:[],reservas:[],config,usuarios:USUARIOS_DEMO(),seq:101,num:1,turno:Date.now(),contado:''};
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(K));if(s&&s.v===1){if(!Array.isArray(s.usuarios)||!s.usuarios.length)s.usuarios=USUARIOS_DEMO();if(s.config.bloqueo==null)s.config.bloqueo=15;s.config=Object.assign({urlCliente:'',abiertoWeb:1,confirmarWeb:0,nequi:'',daviplata:'',breb:''},s.config);return s}}catch(e){}return null}
+const OPCIONES_DEF=[{"n": "Salsas", "items": ["Salsa de tomate", "Mayonesa", "Mostaza", "Salsa de piña", "Salsa rosada", "+Salsa BBQ", "+Salsa de ajo", "+Salsa tártara", "+Picante"], "cats": ["perros", "salchi", "hamb", "salva", "pepitos", "chuzos", "mazorcas", "sandw", "platos"]}, {"n": "Vegetales", "items": ["Cebolla", "Lechuga", "Tomate", "+Repollo", "+Pepinillos"], "cats": ["perros", "hamb", "pepitos", "sandw"]}, {"n": "Toppings", "items": ["Papita ripio", "Queso costeño", "+Huevo de codorniz"], "cats": ["perros", "salchi", "salva", "mazorcas"]}]; // grupos de salsas, vegetales… que el cliente puede quitar o poner
 let S=load()||seed();
+function asegurarOpciones(){if(!Array.isArray(S.config.opciones))S.config.opciones=JSON.parse(JSON.stringify(OPCIONES_DEF))}
+asegurarOpciones();
 
 /* ---------- sincronización con Google Sheets (Apps Script) ---------- */
 const API_DEF='https://script.google.com/macros/s/AKfycbyfOTMY0pKY2eIoVAVQKRKHhVPVP2lLNrEZ8D1PvPSEiGWLcVFEa7FtgXB7_jA_5IMCFg/exec'; // URL /exec de este negocio (la clave la escribe el administrador)
@@ -620,8 +629,9 @@ function aplicar(st){
   S.reservas=st.reservas.map(r=>({...r,t:+r.t,personas:+r.personas||1,mesaId:r.mesaId||null}));
   if(Array.isArray(st.usuarios)&&st.usuarios.length)S.usuarios=st.usuarios.map(u=>({id:String(u.id),nombre:String(u.nombre),rol:u.rol,pinHash:u.pinHash,activo:!!u.activo}));
   const c=st.config||{};
-  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras'].forEach(k=>{
+  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones'].forEach(k=>{
     if(c[k]===undefined)return;if(c[k]===''&&typeof S.config[k]==='number')return;S.config[k]=c[k]});
+  asegurarOpciones();
   S.turno=+c.turno||S.turno;S.contado=c.contado||'';S.seq=(+c.seqComanda||100)+1;S.num=(+c.numOrden||0)+1;
   VER=st.v;SNAP=snap();
   try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}
@@ -1161,6 +1171,12 @@ function vConfig(){
       <p class="small muted">Los ingredientes que escribas en la descripción de cada producto, separados por comas, le salen al cliente para quitarlos.</p>
       <div class="grid2">${f('nequi','Nequi para recibir pagos')}${f('daviplata','DaviPlata')}</div>${f('breb','Llave Bre-B')}
       <p class="small muted">Si dejas un medio vacío, no se le ofrece al cliente.</p></section>
+    <section class="card" style="grid-column:1/-1"><div class="bar"><h3>Opciones del plato para el cliente</h3><span class="muted small">Salsas, vegetales y toppings que puede quitar o poner, sin costo</span></div>
+      <p class="small muted">Escribe las opciones separadas por comas. Las que vienen incluidas en el plato van normal (el cliente las puede quitar). Las que no vienen pero se pueden pedir van con <b>+</b> adelante, por ejemplo <b>+Salsa BBQ</b>. Marca en qué categorías aplica cada grupo.</p>
+      ${(c.opciones||[]).map((g,i)=>`<div class="opc-g"><div class="opc-h"><input data-opc="${i}:n" value="${esc(g.n)}" aria-label="Nombre del grupo" placeholder="Nombre del grupo"><button class="btn sm danger" data-act="opcDel" data-id="${i}">Quitar grupo</button></div>
+        <textarea data-opc="${i}:items" rows="2" aria-label="Opciones de ${esc(g.n)}">${esc((g.items||[]).join(', '))}</textarea>
+        <div class="chips">${S.cats.map(k=>`<label class="chip ${(g.cats||[]).includes(k.id)?'on':''}"><input type="checkbox" data-opc="${i}:cat:${esc(k.id)}" ${(g.cats||[]).includes(k.id)?'checked':''}>${esc(k.n)}</label>`).join('')}</div></div>`).join('')}
+      <button class="btn" data-act="opcAdd" style="align-self:flex-start">+ Agregar grupo</button></section>
     <section class="card"><h3>Zonas de domicilio</h3>${c.zonas.map(z=>`<div class="pay-row"><span>${esc(z.n)}</span><span>${money(z.c)}</span></div>`).join('')}</section>
     <section class="card"><div class="bar"><h3>App en este equipo</h3>${instalada()?'<span class="pill ok">Instalada</span>':''}</div>
       ${instalada()?'<p class="small muted">Estás usando la app instalada. Se abre desde su ícono, a pantalla completa, y funciona aunque se vaya el internet.</p>'
@@ -1285,6 +1301,8 @@ const ACT={
     if(!o.items.some(l=>l.env)){S.ordenes=S.ordenes.filter(x=>x!==o);save();ACT.back();toast('Pedido descartado: no se había enviado nada');return}
     U.modal={type:'anular',oid:o.id};renderModal()},
   motivoChip:id=>{const t=document.getElementById('motivoTxt');if(t)t.value=id},
+  opcAdd:()=>{S.config.opciones.push({n:'Nuevo grupo',items:[],cats:[]});save();render()},
+  opcDel:id=>{S.config.opciones.splice(+id,1);save();render()},
   rechazoChip:id=>{const t=document.getElementById('rechazoTxt');if(t)t.value=id},
   authKey:k=>pinDigito(k,U.modal,h=>{const a=S.usuarios.find(u=>u.activo&&['admin','caja'].includes(u.rol)&&u.pinHash===h);
     if(!a){U.modal.pin='';U.modal.err=true;renderModal();toast('Ese PIN no es de administrador ni de caja','bad');return}
@@ -1419,12 +1437,14 @@ document.addEventListener('input',e=>{
   if(t.id==='recibido'&&U.modal){U.modal.recibido=t.value;const o=ord(U.modal.oid);const tt=total(o);const pagar=tt+Math.round(tt*U.modal.prop/100/100)*100;document.getElementById('cambio').innerHTML=cambioHTML(+t.value.replace(/\D/g,''),pagar)}
   if(t.id==='ref'&&U.modal)U.modal.ref=t.value;
   if(t.id==='contado'){S.contado=t.value;save();const ps=pagadasTurno().filter(o=>o.pago.metodo==='efectivo');const esp=S.config.base+ps.reduce((a,o)=>a+o.pago.total+o.pago.propina,0);document.getElementById('dif').innerHTML=difHTML(esp,+t.value.replace(/\D/g,''))}
+  if(t.dataset.opc&&t.type!=='checkbox'){const [i,k]=t.dataset.opc.split(':');const g=S.config.opciones[+i];if(g){if(k==='n')g.n=t.value;if(k==='items')g.items=t.value.split(',').map(x=>x.trim()).filter(Boolean);save()}}
   if(t.dataset.cfg){const k=t.dataset.cfg;S.config[k]=t.type==='checkbox'?(t.checked?1:0):t.type==='number'?(+t.value||0):t.value;save();if(k==='nombre')document.getElementById('brandSub').textContent=t.value}
 });
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='selMesero'){ord(U.active).mesero=t.value;save()}
   if(t.id==='qrMesa'){U.qrMesa=t.value;U.qrCart=[];render()}
+  if(t.dataset.opc&&t.type==='checkbox'){const [i,,cat]=t.dataset.opc.split(':');const g=S.config.opciones[+i];if(g){g.cats=t.checked?[...new Set([...(g.cats||[]),cat])]:(g.cats||[]).filter(x=>x!==cat);t.closest('.chip')?.classList.toggle('on',t.checked);save()}}
   if(t.name==='tipo'&&t.form?.dataset.form==='pedido'){t.form.querySelector('.only-dom').hidden=t.value!=='domicilio'}
 });
 document.addEventListener('keydown',e=>{
