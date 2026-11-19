@@ -227,6 +227,9 @@ h3{font-size:1rem;font-weight:700}
 /* pedidos */
 .kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
 .kanban.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card.conn{display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;border-color:var(--warn);background:var(--warn-soft)}
+.card.conn>div{flex:1 1 260px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.card.conn input{flex:1 1 160px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 12px;font:inherit}
 @media (max-width:1250px){.kanban.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .pd.por-aprobar{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
 .pd-items div+div{margin-top:3px}
@@ -564,6 +567,7 @@ function load(){try{const s=JSON.parse(localStorage.getItem(K));if(s&&s.v===1){i
 let S=load()||seed();
 
 /* ---------- sincronización con Google Sheets (Apps Script) ---------- */
+const API_DEF='https://script.google.com/macros/s/AKfycbyfOTMY0pKY2eIoVAVQKRKHhVPVP2lLNrEZ8D1PvPSEiGWLcVFEa7FtgXB7_jA_5IMCFg/exec'; // URL /exec de este negocio (la clave la escribe el administrador)
 let API={url:'',token:''};try{Object.assign(API,JSON.parse(localStorage.getItem('fogon_api')||'{}'))}catch(e){}
 let MOVS=[],SNAP=null,VER=null,syncing=false,flushT=null,NET=API.url?'off':'demo',audioCtx=null;
 const SYNC=['cats','productos','insumos','mesas','meseros','ordenes','comandas','reservas','usuarios'];
@@ -815,7 +819,9 @@ function vMesas(){
   const listos=S.comandas.filter(c=>c.estado==='listo');
   const prox=S.reservas.filter(r=>['pendiente','confirmada'].includes(r.estado)&&r.t>now()-20*MIN).sort((a,b)=>a.t-b.t).slice(0,4);
   const grupos=(U.zona==='Todas'?zonas.slice(1):[U.zona]).map(z=>`<div class="zone-h">${esc(z)}</div>${S.mesas.filter(m=>m.zona===z).map(tileMesa).join('')}`).join('');
-  return `<div class="bar">
+  const conectar=!API.url&&yo()?.rol==='admin'?`<form class="card conn" data-form="conectar"><div><b>Conecta este equipo con tu hoja de Google</b><span class="muted small">Escribe la clave de acceso una sola vez en cada celular o tablet. Así todos los equipos comparten mesas, pedidos y caja.</span></div>
+    ${API_DEF?`<input type="hidden" name="url" value="${esc(API_DEF)}">`:'<input name="url" placeholder="URL de Apps Script (termina en /exec)" required autocomplete="off">'}<input name="token" placeholder="Clave de acceso" required autocomplete="off" autocapitalize="off"><button class="btn primary">Conectar</button></form>`:'';
+  return `${conectar}<div class="bar">
     <div class="seg">${zonas.map(z=>`<button class="${U.zona===z?'on':''}" data-act="zona" data-id="${esc(z)}">${esc(z)}</button>`).join('')}</div>
     <div class="legend"><span class="lg libre">Libres ${cnt('libre')}</span><span class="lg ocupada">Ocupadas ${cnt('ocupada')}</span><span class="lg cuenta">Piden cuenta ${cnt('cuenta')}</span><span class="lg reservada">Reservadas ${cnt('reservada')}</span></div>
   </div>
@@ -1126,7 +1132,7 @@ function vConfig(){
         <div class="small" style="overflow-wrap:anywhere"><b>URL:</b> ${esc(API.url)}</div>
         <div class="row" style="max-width:420px"><button class="btn" data-act="sincronizar">Sincronizar ahora</button><button class="btn danger" data-act="desconectar">Desconectar este equipo</button></div>`
       :`<p class="small muted">Pega la URL de la aplicación web de Apps Script (termina en /exec) y la clave que muestra la función setup. Al conectar, los datos de este equipo se reemplazan por los de tu hoja.</p>
-        <form class="grid2" data-form="conectar"><label class="field"><span>URL de la aplicación web</span><input name="url" placeholder="https://script.google.com/macros/s/…/exec" required autocomplete="off"></label>
+        <form class="grid2" data-form="conectar"><label class="field"><span>URL de la aplicación web</span><input name="url" value="${esc(API_DEF)}" placeholder="https://script.google.com/macros/s/…/exec" required autocomplete="off"></label>
         <label class="field"><span>Clave de acceso</span><input name="token" required autocomplete="off"></label><button class="btn primary" style="grid-column:1/-1;justify-self:start">Conectar</button></form>
         <p class="small muted">La conexión funciona cuando la app está publicada en tu dominio (por ejemplo GitHub Pages). Esta vista previa no puede conectarse a servicios externos.</p>`}
     </section>
