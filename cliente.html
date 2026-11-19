@@ -140,13 +140,64 @@ h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
 @keyframes pulse{50%{box-shadow:0 0 0 9px var(--accent-soft)}}
 .steps li.now .dot{animation:pulse 1.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+/* hoja de ingredientes y adicionales */
+.it.tap{cursor:pointer}
+.ya{display:inline-block;margin-top:2px;font-size:.78rem!important;font-weight:700;color:var(--accent)!important}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;animation:fade .15s}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--surface);border-radius:20px 20px 0 0;max-height:88vh;display:flex;flex-direction:column;max-width:600px;margin:0 auto;box-shadow:0 -10px 40px rgba(0,0,0,.25);animation:up .2s ease}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px max(18px,env(safe-area-inset-left,0px)) 12px;border-bottom:1px solid var(--line)}
+.sh-head h2{font-size:1.3rem}
+.sh-head .pr{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.x{border:0;background:var(--surface-2);width:36px;height:36px;border-radius:50%;font-size:1.3rem;line-height:1;cursor:pointer;flex:none;color:var(--fg)}
+.sh-body{overflow-y:auto;padding:14px max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
+.sh-body h3{font-size:1rem}
+.sh-body p{margin:2px 0 0}
+.ings{display:flex;flex-wrap:wrap;gap:8px}
+.ing{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--fg);border-radius:20px;padding:8px 13px;font-weight:600;cursor:pointer}
+.ing .ck{font-weight:800;color:var(--accent)}
+.ing.off{border-color:var(--line);background:var(--surface);color:var(--muted);text-decoration:line-through}
+.ing.off .ck{color:var(--bad);text-decoration:none}
+.exs{display:flex;flex-direction:column;gap:6px}
+.ex{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--fg)}
+.ex .ck{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);font-weight:800;flex:none}
+.ex.on{border-color:var(--accent);background:var(--accent-soft)}
+.ex.on .ck{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.ex .en{flex:1;min-width:0;font-weight:600;display:flex;flex-direction:column}
+.ex small{color:var(--muted);font-weight:400}
+.ex .ep{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sh-foot{display:flex;gap:12px;align-items:center;padding:12px max(18px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));border-top:1px solid var(--line)}
+.sh-foot .btn{flex:1}
+body.lock{overflow:hidden}
+@keyframes up{from{transform:translateY(30px);opacity:.4}}
+@keyframes fade{from{opacity:0}}
+/* pasos del pedido web */
+.mods{font-size:.84rem;color:var(--muted)}
+.lnk{border:0;background:none;padding:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:inherit}
+.card h3{display:flex;align-items:center}
+.nstep{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:.8rem;margin-right:8px;flex:none}
+.tipos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tipo{display:flex;flex-direction:column;gap:2px;text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:14px;cursor:pointer;color:var(--fg)}
+.tipo b{font-size:1rem}
+.tipo span{font-size:.82rem;color:var(--muted)}
+.tipo.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--accent-soft)}
+.drop{position:relative;display:flex;align-items:center;gap:12px;border:2px dashed var(--line);border-radius:12px;padding:14px;cursor:pointer;background:var(--bg)}
+.drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.drop.has{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+.drop img{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none}
+.drop .dz-i{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:1.2rem;flex:none}
+.drop span{display:flex;flex-direction:column}
+.drop small{color:var(--muted)}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.payinfo.ok{background:var(--accent-soft)}
 @media (max-width:420px){.grid2,.opts{grid-template-columns:1fr}}
+@media (max-width:360px){.tipos{grid-template-columns:1fr}}
 </style>
 
 </head>
 <body>
 <div id="app"></div>
 <div id="toasts" aria-live="polite"></div>
+<div id="sheet"></div>
 
 <script>
 /* ===== Configuración =====
@@ -162,19 +213,43 @@ const qs=new URLSearchParams(location.search);
 let MESA=qs.get('m'),COD=qs.get('c');
 const DEMO=!API_URL;
 
-const DEMO_MENU={"ok": true, "negocio": {"nombre": "Date el Gusto", "tel": "300 337 8831", "direccion": "Instagram @date.elgusto2024"}, "abierto": true, "impoconsumo": 0, "propina": 0, "cats": [{"id": "perros", "n": "Perros"}, {"id": "salchi", "n": "Salchipapas"}, {"id": "hamb", "n": "Hamburguesas"}, {"id": "salva", "n": "Salvajadas"}, {"id": "pepitos", "n": "Pepitos"}, {"id": "chuzos", "n": "Chuzo desgranado"}, {"id": "mazorcas", "n": "Mazorcas desgranadas"}, {"id": "sandw", "n": "Sándwich"}, {"id": "platos", "n": "Platos especiales"}, {"id": "asados", "n": "Asados"}, {"id": "beb", "n": "Bebidas"}, {"id": "adic", "n": "Adicionales"}], "productos": [{"id": "perro-sencillo", "nombre": "Perro sencillo", "cat": "perros", "precio": 6000, "desc": "Gratinado"}, {"id": "perro-plancha", "nombre": "Perro a la plancha", "cat": "perros", "precio": 7000, "desc": "Gratinado"}, {"id": "perro-gemelo", "nombre": "Perro gemelo", "cat": "perros", "precio": 10000, "desc": "Gratinado"}, {"id": "butiperro", "nombre": "Butiperro", "cat": "perros", "precio": 10500, "desc": "Gratinado"}, {"id": "choriperro", "nombre": "Choriperro", "cat": "perros", "precio": 10500, "desc": "Gratinado"}, {"id": "perro-ranchero", "nombre": "Perro ranchero", "cat": "perros", "precio": 12000, "desc": "Gratinado"}, {"id": "perro-suizo", "nombre": "Perro suizo", "cat": "perros", "precio": 14000, "desc": "Gratinado"}, {"id": "perro-medio-suizo", "nombre": "Perro medio suizo", "cat": "perros", "precio": 11000, "desc": "Gratinado"}, {"id": "perro-italo-suizo", "nombre": "Perro italo suizo", "cat": "perros", "precio": 16000, "desc": "Gratinado"}, {"id": "perro-pollo", "nombre": "Perro pollo", "cat": "perros", "precio": 12000, "desc": "Gratinado"}, {"id": "perro-casa", "nombre": "Perro de la casa", "cat": "perros", "precio": 23000, "desc": "Pollo, cerdo, suizo, ranchera, chorizo, butifarra, mozzarella, maíz y tocineta. Gratinado"}, {"id": "salchi-sencilla", "nombre": "Salchipapa sencilla", "cat": "salchi", "precio": 12000, "desc": ""}, {"id": "butipapa", "nombre": "Butipapa", "cat": "salchi", "precio": 15000, "desc": ""}, {"id": "choripapa", "nombre": "Choripapa", "cat": "salchi", "precio": 16000, "desc": ""}, {"id": "salchi-trifasica", "nombre": "Salchipapa trifásica", "cat": "salchi", "precio": 18000, "desc": "Chorizo, butifarra y pollo"}, {"id": "chori-buti", "nombre": "Chori-buti", "cat": "salchi", "precio": 17000, "desc": ""}, {"id": "salchisuiza", "nombre": "Salchisuiza", "cat": "salchi", "precio": 20000, "desc": ""}, {"id": "salchiranchera", "nombre": "Salchiranchera", "cat": "salchi", "precio": 19000, "desc": ""}, {"id": "salchipollo", "nombre": "Salchipollo", "cat": "salchi", "precio": 19000, "desc": ""}, {"id": "salchi-pollo-suiza", "nombre": "Pollo suiza", "cat": "salchi", "precio": 22000, "desc": ""}, {"id": "salchi-pollo-ranchera", "nombre": "Pollo ranchera", "cat": "salchi", "precio": 21000, "desc": ""}, {"id": "salchi-mixta", "nombre": "Salchipapa mixta", "cat": "salchi", "precio": 22000, "desc": "Pollo y cerdo"}, {"id": "salchi-casa", "nombre": "Salchipapa de la casa", "cat": "salchi", "precio": 27000, "desc": "Pollo, cerdo, suiza, ranchera, chorizo, butifarra, gratinado con maíz y tocineta"}, {"id": "hamb-carne", "nombre": "Hamburguesa de carne", "cat": "hamb", "precio": 15000, "desc": "Con papas"}, {"id": "hamb-doble", "nombre": "Hamburguesa doble carne", "cat": "hamb", "precio": 18000, "desc": "Con papas"}, {"id": "hamb-pollo", "nombre": "Hamburguesa de pollo", "cat": "hamb", "precio": 16000, "desc": "Con papas"}, {"id": "hamb-mixta", "nombre": "Hamburguesa mixta", "cat": "hamb", "precio": 18000, "desc": "Con papas"}, {"id": "hamb-casa", "nombre": "Hamburguesa de la casa", "cat": "hamb", "precio": 22000, "desc": "Pollo, carne, jamón, doble mozzarella, tocineta, maíz y cebolla caramelizada. Con papas"}, {"id": "salva-doble", "nombre": "Salvajada doble", "cat": "salva", "precio": 36000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra y salchicha"}, {"id": "salva-5carnes", "nombre": "Salvajada 5 carnes", "cat": "salva", "precio": 40000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra y salchicha"}, {"id": "salva-4x4", "nombre": "Salvajada 4x4", "cat": "salva", "precio": 48000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra, salchicha y gratinado"}, {"id": "salva-familiar", "nombre": "Salvajada familiar", "cat": "salva", "precio": 62000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra, salchicha, mozzarella, maíz y jamón"}, {"id": "salva-casa", "nombre": "Salvajada Date el Gusto", "cat": "salva", "precio": 77000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra, ranchera, salchicha, cebolla, pimentón, mozzarella, maíz, jamón y tocineta"}, {"id": "pepito-pollo", "nombre": "Pepito de pollo", "cat": "pepitos", "precio": 20000, "desc": ""}, {"id": "pepito-mixto", "nombre": "Pepito mixto", "cat": "pepitos", "precio": 20000, "desc": "Pollo y cerdo"}, {"id": "pepito-ranchero", "nombre": "Pepito ranchero", "cat": "pepitos", "precio": 23000, "desc": "Pollo y suizo"}, {"id": "pepito-4carnes", "nombre": "Pepito 4 carnes", "cat": "pepitos", "precio": 25000, "desc": "Pollo, cerdo, chorizo y butifarra"}, {"id": "chuzo-chori-buti", "nombre": "Chuzo chorizo y butifarra", "cat": "chuzos", "precio": 15000, "desc": "Con bollo"}, {"id": "chuzo-pollo", "nombre": "Chuzo de pollo", "cat": "chuzos", "precio": 17000, "desc": "Gratinado. Con bollo"}, {"id": "chuzo-suizo", "nombre": "Chuzo suizo", "cat": "chuzos", "precio": 17000, "desc": "Gratinado. Con bollo"}, {"id": "chuzo-pollo-suizo", "nombre": "Chuzo pollo suizo", "cat": "chuzos", "precio": 19000, "desc": "Con bollo"}, {"id": "chuzo-mixto", "nombre": "Chuzo mixto", "cat": "chuzos", "precio": 19000, "desc": "Pollo y cerdo. Con bollo"}, {"id": "chuzo-trifasico", "nombre": "Chuzo trifásico", "cat": "chuzos", "precio": 19000, "desc": "Pollo, chorizo, butifarra y gratinado. Con bollo"}, {"id": "chuzo-casa", "nombre": "Chuzo de la casa", "cat": "chuzos", "precio": 26000, "desc": "Pollo, cerdo, chorizo, butifarra, gratinado, maíz y papa. Con bollo"}, {"id": "mazorca-chori-buti", "nombre": "Mazorca chorizo y butifarra", "cat": "mazorcas", "precio": 16000, "desc": ""}, {"id": "mazorca-pollo", "nombre": "Mazorca de pollo", "cat": "mazorcas", "precio": 18000, "desc": "Gratinado"}, {"id": "mazorca-suiza", "nombre": "Mazorca suiza", "cat": "mazorcas", "precio": 19000, "desc": "Gratinado"}, {"id": "mazorca-pollo-suiza", "nombre": "Mazorca pollo suiza", "cat": "mazorcas", "precio": 20000, "desc": "Gratinado"}, {"id": "mazorca-mixta", "nombre": "Mazorca mixta", "cat": "mazorcas", "precio": 20000, "desc": "Pollo, cerdo y gratinado"}, {"id": "mazorca-trifasica", "nombre": "Mazorca trifásica", "cat": "mazorcas", "precio": 22000, "desc": "Pollo, chorizo, butifarra y gratinado"}, {"id": "mazorca-casa", "nombre": "Mazorca de la casa", "cat": "mazorcas", "precio": 24000, "desc": "Pollo, cerdo, chorizo, butifarra, gratinado y jamón"}, {"id": "sandw-sencillo", "nombre": "Sándwich sencillo", "cat": "sandw", "precio": 9000, "desc": "Jamón y mozzarella"}, {"id": "sandw-pollo", "nombre": "Sándwich de pollo", "cat": "sandw", "precio": 12000, "desc": ""}, {"id": "sandw-mixto", "nombre": "Sándwich mixto", "cat": "sandw", "precio": 16000, "desc": "Pollo y cerdo"}, {"id": "sandw-ranchero", "nombre": "Sándwich ranchero", "cat": "sandw", "precio": 18000, "desc": "Pollo y suiza"}, {"id": "tacos", "nombre": "Tacos", "cat": "platos", "precio": 28000, "desc": "Pollo, cerdo, chorizo, butifarra, pimentón y cebolla grillé, gratinado, picante, pico de gallo y suero"}, {"id": "patacon-especial", "nombre": "Patacón especial", "cat": "platos", "precio": 27000, "desc": "Pollo, cerdo, chorizo, butifarra, gratinado, maíz y jamón"}, {"id": "pechuga-bollo", "nombre": "Pechuga con bollo", "cat": "asados", "precio": 20000, "desc": "Con ensalada"}, {"id": "pechuga-papa", "nombre": "Pechuga con papa", "cat": "asados", "precio": 24000, "desc": "Con ensalada"}, {"id": "pechuga-grat-bollo", "nombre": "Pechuga gratinada con bollo", "cat": "asados", "precio": 23000, "desc": "Con ensalada"}, {"id": "pechuga-grat-papa", "nombre": "Pechuga gratinada con papa", "cat": "asados", "precio": 26000, "desc": "Con ensalada"}, {"id": "cerdo-bollo", "nombre": "Cerdo con bollo", "cat": "asados", "precio": 20000, "desc": "Con ensalada"}, {"id": "cerdo-papa", "nombre": "Cerdo con papa", "cat": "asados", "precio": 24000, "desc": "Con ensalada"}, {"id": "carne-bollo", "nombre": "Carne con bollo", "cat": "asados", "precio": 22000, "desc": "Con ensalada"}, {"id": "carne-papa", "nombre": "Carne con papa", "cat": "asados", "precio": 26000, "desc": "Con ensalada"}, {"id": "asado-especial", "nombre": "Asado especial", "cat": "asados", "precio": 35000, "desc": "Pollo, cerdo, carne, suiza y ranchera con bollo, papa y ensalada"}, {"id": "coca-400", "nombre": "Coca-Cola 400 ml", "cat": "beb", "precio": 3500, "desc": ""}, {"id": "coca-15", "nombre": "Coca-Cola 1.5 L", "cat": "beb", "precio": 7000, "desc": ""}, {"id": "cuatro-400", "nombre": "Cuatro 400 ml", "cat": "beb", "precio": 3500, "desc": ""}, {"id": "cuatro-15", "nombre": "Cuatro 1.5 L", "cat": "beb", "precio": 7000, "desc": ""}, {"id": "postobon-litro", "nombre": "Postobón litro", "cat": "beb", "precio": 4000, "desc": ""}, {"id": "postobon-400", "nombre": "Postobón 400 ml", "cat": "beb", "precio": 3000, "desc": ""}, {"id": "hit-litro", "nombre": "Jugo Hit litro", "cat": "beb", "precio": 6000, "desc": ""}, {"id": "hit-400", "nombre": "Jugo Hit 400 ml", "cat": "beb", "precio": 3500, "desc": ""}, {"id": "adic-papa", "nombre": "Porción de papa", "cat": "adic", "precio": 5000, "desc": ""}, {"id": "adic-maiz", "nombre": "Porción de maíz", "cat": "adic", "precio": 3000, "desc": ""}, {"id": "adic-gratinado", "nombre": "Gratinado adicional", "cat": "adic", "precio": 4000, "desc": ""}, {"id": "adic-tocineta", "nombre": "Tocineta adicional", "cat": "adic", "precio": 5000, "desc": "2 unidades"}, {"id": "adic-pollo", "nombre": "Pollo adicional", "cat": "adic", "precio": 6000, "desc": ""}, {"id": "adic-cerdo", "nombre": "Cerdo adicional", "cat": "adic", "precio": 6000, "desc": ""}, {"id": "adic-chori-buti", "nombre": "Chori-buti adicional", "cat": "adic", "precio": 5000, "desc": ""}], "zonas": [{"n": "Zona 1 · hasta 2 km", "c": 3000}, {"n": "Zona 2 · 2 a 5 km", "c": 5000}, {"n": "Zona 3 · 5 a 8 km", "c": 8000}], "pagos": {"nequi": "302 402 0650", "daviplata": "", "breb": ""}, "mesa": null};
+const DEMO_MENU={"ok": true, "negocio": {"nombre": "Date el Gusto", "tel": "300 337 8831", "direccion": "Instagram @date.elgusto2024"}, "abierto": true, "impoconsumo": 0, "propina": 0, "cats": [{"id": "perros", "n": "Perros"}, {"id": "salchi", "n": "Salchipapas"}, {"id": "hamb", "n": "Hamburguesas"}, {"id": "salva", "n": "Salvajadas"}, {"id": "pepitos", "n": "Pepitos"}, {"id": "chuzos", "n": "Chuzo desgranado"}, {"id": "mazorcas", "n": "Mazorcas desgranadas"}, {"id": "sandw", "n": "Sándwich"}, {"id": "platos", "n": "Platos especiales"}, {"id": "asados", "n": "Asados"}, {"id": "beb", "n": "Bebidas"}, {"id": "adic", "n": "Adicionales"}], "productos": [{"id": "perro-sencillo", "nombre": "Perro sencillo", "cat": "perros", "precio": 6000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-plancha", "nombre": "Perro a la plancha", "cat": "perros", "precio": 7000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-gemelo", "nombre": "Perro gemelo", "cat": "perros", "precio": 10000, "desc": "Gratinado", "est": "cocina"}, {"id": "butiperro", "nombre": "Butiperro", "cat": "perros", "precio": 10500, "desc": "Gratinado", "est": "cocina"}, {"id": "choriperro", "nombre": "Choriperro", "cat": "perros", "precio": 10500, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-ranchero", "nombre": "Perro ranchero", "cat": "perros", "precio": 12000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-suizo", "nombre": "Perro suizo", "cat": "perros", "precio": 14000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-medio-suizo", "nombre": "Perro medio suizo", "cat": "perros", "precio": 11000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-italo-suizo", "nombre": "Perro italo suizo", "cat": "perros", "precio": 16000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-pollo", "nombre": "Perro pollo", "cat": "perros", "precio": 12000, "desc": "Gratinado", "est": "cocina"}, {"id": "perro-casa", "nombre": "Perro de la casa", "cat": "perros", "precio": 23000, "desc": "Pollo, cerdo, suizo, ranchera, chorizo, butifarra, mozzarella, maíz y tocineta. Gratinado", "est": "cocina"}, {"id": "salchi-sencilla", "nombre": "Salchipapa sencilla", "cat": "salchi", "precio": 12000, "desc": "", "est": "cocina"}, {"id": "butipapa", "nombre": "Butipapa", "cat": "salchi", "precio": 15000, "desc": "", "est": "cocina"}, {"id": "choripapa", "nombre": "Choripapa", "cat": "salchi", "precio": 16000, "desc": "", "est": "cocina"}, {"id": "salchi-trifasica", "nombre": "Salchipapa trifásica", "cat": "salchi", "precio": 18000, "desc": "Chorizo, butifarra y pollo", "est": "cocina"}, {"id": "chori-buti", "nombre": "Chori-buti", "cat": "salchi", "precio": 17000, "desc": "", "est": "cocina"}, {"id": "salchisuiza", "nombre": "Salchisuiza", "cat": "salchi", "precio": 20000, "desc": "", "est": "cocina"}, {"id": "salchiranchera", "nombre": "Salchiranchera", "cat": "salchi", "precio": 19000, "desc": "", "est": "cocina"}, {"id": "salchipollo", "nombre": "Salchipollo", "cat": "salchi", "precio": 19000, "desc": "", "est": "cocina"}, {"id": "salchi-pollo-suiza", "nombre": "Pollo suiza", "cat": "salchi", "precio": 22000, "desc": "", "est": "cocina"}, {"id": "salchi-pollo-ranchera", "nombre": "Pollo ranchera", "cat": "salchi", "precio": 21000, "desc": "", "est": "cocina"}, {"id": "salchi-mixta", "nombre": "Salchipapa mixta", "cat": "salchi", "precio": 22000, "desc": "Pollo y cerdo", "est": "cocina"}, {"id": "salchi-casa", "nombre": "Salchipapa de la casa", "cat": "salchi", "precio": 27000, "desc": "Pollo, cerdo, suiza, ranchera, chorizo, butifarra, gratinado con maíz y tocineta", "est": "cocina"}, {"id": "hamb-carne", "nombre": "Hamburguesa de carne", "cat": "hamb", "precio": 15000, "desc": "Con papas", "est": "cocina"}, {"id": "hamb-doble", "nombre": "Hamburguesa doble carne", "cat": "hamb", "precio": 18000, "desc": "Con papas", "est": "cocina"}, {"id": "hamb-pollo", "nombre": "Hamburguesa de pollo", "cat": "hamb", "precio": 16000, "desc": "Con papas", "est": "cocina"}, {"id": "hamb-mixta", "nombre": "Hamburguesa mixta", "cat": "hamb", "precio": 18000, "desc": "Con papas", "est": "cocina"}, {"id": "hamb-casa", "nombre": "Hamburguesa de la casa", "cat": "hamb", "precio": 22000, "desc": "Pollo, carne, jamón, doble mozzarella, tocineta, maíz y cebolla caramelizada. Con papas", "est": "cocina"}, {"id": "salva-doble", "nombre": "Salvajada doble", "cat": "salva", "precio": 36000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra y salchicha", "est": "cocina"}, {"id": "salva-5carnes", "nombre": "Salvajada 5 carnes", "cat": "salva", "precio": 40000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra y salchicha", "est": "cocina"}, {"id": "salva-4x4", "nombre": "Salvajada 4x4", "cat": "salva", "precio": 48000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra, salchicha y gratinado", "est": "cocina"}, {"id": "salva-familiar", "nombre": "Salvajada familiar", "cat": "salva", "precio": 62000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra, salchicha, mozzarella, maíz y jamón", "est": "cocina"}, {"id": "salva-casa", "nombre": "Salvajada Date el Gusto", "cat": "salva", "precio": 77000, "desc": "Pollo, cerdo, suiza, chorizo, butifarra, ranchera, salchicha, cebolla, pimentón, mozzarella, maíz, jamón y tocineta", "est": "cocina"}, {"id": "pepito-pollo", "nombre": "Pepito de pollo", "cat": "pepitos", "precio": 20000, "desc": "", "est": "cocina"}, {"id": "pepito-mixto", "nombre": "Pepito mixto", "cat": "pepitos", "precio": 20000, "desc": "Pollo y cerdo", "est": "cocina"}, {"id": "pepito-ranchero", "nombre": "Pepito ranchero", "cat": "pepitos", "precio": 23000, "desc": "Pollo y suizo", "est": "cocina"}, {"id": "pepito-4carnes", "nombre": "Pepito 4 carnes", "cat": "pepitos", "precio": 25000, "desc": "Pollo, cerdo, chorizo y butifarra", "est": "cocina"}, {"id": "chuzo-chori-buti", "nombre": "Chuzo chorizo y butifarra", "cat": "chuzos", "precio": 15000, "desc": "Con bollo", "est": "cocina"}, {"id": "chuzo-pollo", "nombre": "Chuzo de pollo", "cat": "chuzos", "precio": 17000, "desc": "Gratinado. Con bollo", "est": "cocina"}, {"id": "chuzo-suizo", "nombre": "Chuzo suizo", "cat": "chuzos", "precio": 17000, "desc": "Gratinado. Con bollo", "est": "cocina"}, {"id": "chuzo-pollo-suizo", "nombre": "Chuzo pollo suizo", "cat": "chuzos", "precio": 19000, "desc": "Con bollo", "est": "cocina"}, {"id": "chuzo-mixto", "nombre": "Chuzo mixto", "cat": "chuzos", "precio": 19000, "desc": "Pollo y cerdo. Con bollo", "est": "cocina"}, {"id": "chuzo-trifasico", "nombre": "Chuzo trifásico", "cat": "chuzos", "precio": 19000, "desc": "Pollo, chorizo, butifarra y gratinado. Con bollo", "est": "cocina"}, {"id": "chuzo-casa", "nombre": "Chuzo de la casa", "cat": "chuzos", "precio": 26000, "desc": "Pollo, cerdo, chorizo, butifarra, gratinado, maíz y papa. Con bollo", "est": "cocina"}, {"id": "mazorca-chori-buti", "nombre": "Mazorca chorizo y butifarra", "cat": "mazorcas", "precio": 16000, "desc": "", "est": "cocina"}, {"id": "mazorca-pollo", "nombre": "Mazorca de pollo", "cat": "mazorcas", "precio": 18000, "desc": "Gratinado", "est": "cocina"}, {"id": "mazorca-suiza", "nombre": "Mazorca suiza", "cat": "mazorcas", "precio": 19000, "desc": "Gratinado", "est": "cocina"}, {"id": "mazorca-pollo-suiza", "nombre": "Mazorca pollo suiza", "cat": "mazorcas", "precio": 20000, "desc": "Gratinado", "est": "cocina"}, {"id": "mazorca-mixta", "nombre": "Mazorca mixta", "cat": "mazorcas", "precio": 20000, "desc": "Pollo, cerdo y gratinado", "est": "cocina"}, {"id": "mazorca-trifasica", "nombre": "Mazorca trifásica", "cat": "mazorcas", "precio": 22000, "desc": "Pollo, chorizo, butifarra y gratinado", "est": "cocina"}, {"id": "mazorca-casa", "nombre": "Mazorca de la casa", "cat": "mazorcas", "precio": 24000, "desc": "Pollo, cerdo, chorizo, butifarra, gratinado y jamón", "est": "cocina"}, {"id": "sandw-sencillo", "nombre": "Sándwich sencillo", "cat": "sandw", "precio": 9000, "desc": "Jamón y mozzarella", "est": "cocina"}, {"id": "sandw-pollo", "nombre": "Sándwich de pollo", "cat": "sandw", "precio": 12000, "desc": "", "est": "cocina"}, {"id": "sandw-mixto", "nombre": "Sándwich mixto", "cat": "sandw", "precio": 16000, "desc": "Pollo y cerdo", "est": "cocina"}, {"id": "sandw-ranchero", "nombre": "Sándwich ranchero", "cat": "sandw", "precio": 18000, "desc": "Pollo y suiza", "est": "cocina"}, {"id": "tacos", "nombre": "Tacos", "cat": "platos", "precio": 28000, "desc": "Pollo, cerdo, chorizo, butifarra, pimentón y cebolla grillé, gratinado, picante, pico de gallo y suero", "est": "cocina"}, {"id": "patacon-especial", "nombre": "Patacón especial", "cat": "platos", "precio": 27000, "desc": "Pollo, cerdo, chorizo, butifarra, gratinado, maíz y jamón", "est": "cocina"}, {"id": "pechuga-bollo", "nombre": "Pechuga con bollo", "cat": "asados", "precio": 20000, "desc": "Con ensalada", "est": "cocina"}, {"id": "pechuga-papa", "nombre": "Pechuga con papa", "cat": "asados", "precio": 24000, "desc": "Con ensalada", "est": "cocina"}, {"id": "pechuga-grat-bollo", "nombre": "Pechuga gratinada con bollo", "cat": "asados", "precio": 23000, "desc": "Con ensalada", "est": "cocina"}, {"id": "pechuga-grat-papa", "nombre": "Pechuga gratinada con papa", "cat": "asados", "precio": 26000, "desc": "Con ensalada", "est": "cocina"}, {"id": "cerdo-bollo", "nombre": "Cerdo con bollo", "cat": "asados", "precio": 20000, "desc": "Con ensalada", "est": "cocina"}, {"id": "cerdo-papa", "nombre": "Cerdo con papa", "cat": "asados", "precio": 24000, "desc": "Con ensalada", "est": "cocina"}, {"id": "carne-bollo", "nombre": "Carne con bollo", "cat": "asados", "precio": 22000, "desc": "Con ensalada", "est": "cocina"}, {"id": "carne-papa", "nombre": "Carne con papa", "cat": "asados", "precio": 26000, "desc": "Con ensalada", "est": "cocina"}, {"id": "asado-especial", "nombre": "Asado especial", "cat": "asados", "precio": 35000, "desc": "Pollo, cerdo, carne, suiza y ranchera con bollo, papa y ensalada", "est": "cocina"}, {"id": "coca-400", "nombre": "Coca-Cola 400 ml", "cat": "beb", "precio": 3500, "desc": "", "est": "barra"}, {"id": "coca-15", "nombre": "Coca-Cola 1.5 L", "cat": "beb", "precio": 7000, "desc": "", "est": "barra"}, {"id": "cuatro-400", "nombre": "Cuatro 400 ml", "cat": "beb", "precio": 3500, "desc": "", "est": "barra"}, {"id": "cuatro-15", "nombre": "Cuatro 1.5 L", "cat": "beb", "precio": 7000, "desc": "", "est": "barra"}, {"id": "postobon-litro", "nombre": "Postobón litro", "cat": "beb", "precio": 4000, "desc": "", "est": "barra"}, {"id": "postobon-400", "nombre": "Postobón 400 ml", "cat": "beb", "precio": 3000, "desc": "", "est": "barra"}, {"id": "hit-litro", "nombre": "Jugo Hit litro", "cat": "beb", "precio": 6000, "desc": "", "est": "barra"}, {"id": "hit-400", "nombre": "Jugo Hit 400 ml", "cat": "beb", "precio": 3500, "desc": "", "est": "barra"}, {"id": "adic-papa", "nombre": "Porción de papa", "cat": "adic", "precio": 5000, "desc": "", "est": "cocina"}, {"id": "adic-maiz", "nombre": "Porción de maíz", "cat": "adic", "precio": 3000, "desc": "", "est": "cocina"}, {"id": "adic-gratinado", "nombre": "Gratinado adicional", "cat": "adic", "precio": 4000, "desc": "", "est": "cocina"}, {"id": "adic-tocineta", "nombre": "Tocineta adicional", "cat": "adic", "precio": 5000, "desc": "2 unidades", "est": "cocina"}, {"id": "adic-pollo", "nombre": "Pollo adicional", "cat": "adic", "precio": 6000, "desc": "", "est": "cocina"}, {"id": "adic-cerdo", "nombre": "Cerdo adicional", "cat": "adic", "precio": 6000, "desc": "", "est": "cocina"}, {"id": "adic-chori-buti", "nombre": "Chori-buti adicional", "cat": "adic", "precio": 5000, "desc": "", "est": "cocina"}], "extras": "adic", "zonas": [{"n": "Zona 1 · hasta 2 km", "c": 3000}, {"n": "Zona 2 · 2 a 5 km", "c": 5000}, {"n": "Zona 3 · 5 a 8 km", "c": 8000}], "pagos": {"nequi": "302 402 0650", "daviplata": "", "breb": ""}, "mesa": null};
 
 const LS=()=> 'dge_cli_'+(MESA?MESA:'web');
-const st={menu:null,view:'menu',cat:null,q:'',cart:[],tipo:'domicilio',pedido:null,info:null,sending:false,err:null,form:{nombre:'',tel:'',direccion:'',zona:'0',pago:'efectivo',pagaCon:'',nota:''}};
+// Clave de la app del restaurante: sin hoja conectada, los pedidos de prueba le llegan por este mismo navegador
+const PUENTE='dge_pos_v2';
+const st={menu:null,view:'menu',cat:null,q:'',cart:[],tipo:'',pedido:null,info:null,sending:false,err:null,sheet:null,cmp:null,
+  form:{nombre:'',tel:'',direccion:'',zona:'0',pago:'',nota:''}};
+const claveLinea=l=>[l.pid,[...l.sin].sort().join('|'),[...l.ext].sort().join('|'),(l.nota||'').trim()].join('#');
+const normLinea=l=>{const x={pid:l.pid,cant:Math.max(1,Math.min(20,+l.cant||1)),sin:Array.isArray(l.sin)?l.sin.map(String):[],ext:Array.isArray(l.ext)?l.ext.map(String):[],nota:String(l.nota||'')};x.k=claveLinea(x);return x};
 function persist(){try{localStorage.setItem(LS(),JSON.stringify({cart:st.cart,pedido:st.pedido,form:st.form,tipo:st.tipo}))}catch(e){}}
-function restore(){try{const d=JSON.parse(localStorage.getItem(LS())||'{}');st.cart=d.cart||[];st.pedido=d.pedido||null;st.form=Object.assign(st.form,d.form||{});st.tipo=d.tipo||'domicilio'}catch(e){}}
+function restore(){try{const d=JSON.parse(localStorage.getItem(LS())||'{}');st.cart=(d.cart||[]).map(normLinea);st.pedido=d.pedido||null;st.form=Object.assign(st.form,d.form||{});st.tipo=d.tipo||''}catch(e){}}
 function toast(m,k){const t=document.createElement('div');t.className='toast'+(k?' '+k:'');t.textContent=m;document.getElementById('toasts').append(t);setTimeout(()=>t.remove(),3500)}
 const prod=id=>st.menu.productos.find(p=>p.id===id);
+const MED_N={nequi:'Nequi',daviplata:'DaviPlata',breb:'Bre-B'};
+const medios=()=>['nequi','daviplata','breb'].filter(k=>st.menu.pagos[k]);
+
+/* ===== ingredientes y adicionales ===== */
+// Lo que dice la descripción, separado por comas, "y" o "con" (mismo criterio que el servidor)
+function ingDe(desc){
+  const out=[];
+  String(desc||'').split(/\.\s*/).forEach(fr=>fr.split(/,|\s+y\s+|\s+con\s+/i).forEach(x=>{
+    x=x.trim().replace(/^con\s+/i,'');if(!x||/\d/.test(x)||x.length>30)return;
+    x=x.charAt(0).toUpperCase()+x.slice(1);if(!out.some(o=>o.toLowerCase()===x.toLowerCase()))out.push(x)}));
+  return out;
+}
+const extrasDe=p=>{const c=st.menu.extras;if(!c||!p||p.cat===c||p.est==='barra')return[];return st.menu.productos.filter(x=>x.cat===c)};
+const tieneOpc=p=>ingDe(p.desc).length>0||extrasDe(p).length>0;
+const unit=l=>{const p=prod(l.pid);return p?p.precio+l.ext.reduce((a,id)=>a+(prod(id)?.precio||0),0):0};
+const modsTxt=l=>[l.sin.length?'Sin '+l.sin.map(x=>x.toLowerCase()).join(', '):'',...l.ext.map(id=>'+ '+(prod(id)?.nombre||'')),(l.nota||'').trim()].filter(Boolean).join(' · ');
 const cartN=()=>st.cart.reduce((a,l)=>a+l.cant,0);
-const cartT=()=>st.cart.reduce((a,l)=>{const p=prod(l.pid);return a+(p?p.precio*l.cant:0)},0);
+const cartT=()=>st.cart.reduce((a,l)=>a+unit(l)*l.cant,0);
+const enCarrito=pid=>st.cart.filter(l=>l.pid===pid).reduce((a,l)=>a+l.cant,0);
+const simpleK=pid=>claveLinea({pid,sin:[],ext:[],nota:''});
+function agregarLinea(l){l=normLinea(l);const ex=st.cart.find(x=>x.k===l.k);if(ex)ex.cant=Math.min(20,ex.cant+l.cant);else st.cart.push(l)}
 const envio=()=>!MESA&&st.tipo==='domicilio'?(st.menu.zonas[+st.form.zona]||{c:0}).c:0;
 
-/* ===== API (o simulación en modo demo) ===== */
+/* ===== API (o modo prueba) ===== */
 async function apiGet(params){
   if(DEMO)return demoGet(params);
   const r=await fetch(API_URL+'?'+new URLSearchParams(params));return r.json();
@@ -183,19 +258,39 @@ async function apiPost(body){
   if(DEMO)return demoPost(body);
   const r=await fetch(API_URL,{method:'POST',body:JSON.stringify(body)});return r.json();
 }
+const rid=()=>Math.random().toString(36).slice(2,9);
 function demoGet(p){
   if(p.action==='menu')return {...DEMO_MENU,mesa:MESA?{id:MESA,nombre:MESA.replace(/^M/,''),zona:MESA.startsWith('T')?'Terraza':'Salón'}:null};
+  if(!String(p.id).startsWith('demo')){
+    let m={};try{m=JSON.parse(localStorage.getItem(PUENTE+'_estados')||'{}')}catch(e){}
+    if(m[p.id])return{ok:true,pedido:m[p.id]};
+    const d=JSON.parse(localStorage.getItem('dge_demo_'+p.id)||'null');if(!d)return{ok:false,error:'No encontramos ese pedido.'};
+    return{ok:true,pedido:{...d,estado:'por_aprobar'}};
+  }
   const d=JSON.parse(localStorage.getItem('dge_demo_'+p.id)||'null');if(!d)return{ok:false,error:'No encontramos ese pedido.'};
   const s=(Date.now()-d.t)/1000;let estado='recibido';
-  if(s>15)estado='preparando';if(s>45)estado='listo';if(d.tipo==='domicilio'&&s>70)estado='camino';if(d.tipo!=='mesa'&&s>110)estado='entregado';
+  if(s>15)estado='preparando';if(s>45)estado='listo';
   return{ok:true,pedido:{...d,estado,total:d.items.reduce((a,l)=>a+l.precio*l.cant,0)}};
 }
 function demoPost(b){
   if(b.action==='mesaAviso')return{ok:true};
-  const items=b.items.map(i=>{const p=prod(i.pid);return{nombre:p.nombre,cant:i.cant,precio:p.precio,nota:i.nota||''}});
-  let prev=null;if(b.mesa&&st.pedido)prev=JSON.parse(localStorage.getItem('dge_demo_'+st.pedido.id)||'null');
-  if(b.tipo==='domicilio'&&!b.mesa){const z=DEMO_MENU.zonas[+b.zona||0];items.push({nombre:'Domicilio '+z.n.split(' · ')[0],cant:1,precio:z.c,nota:''})}
-  const d=prev?{...prev,items:prev.items.concat(items),t:Date.now()}:{id:'demo'+Date.now(),num:Math.floor(20+Math.random()*60),tipo:b.mesa?'mesa':b.tipo,mesa:b.mesa?b.mesa.replace(/^M/,''):'',items,t:Date.now(),pagoPreferido:b.pago||'',cuentaPedida:false,pagado:false};
+  if(!b.mesa){
+    const id='w'+Date.now().toString(36)+rid().slice(0,4);
+    const items=b.items.map(i=>{const p=prod(i.pid);const l=normLinea(i);
+      return{id:'l'+rid(),pid:p.id,nombre:p.nombre,precio:unit(l),cant:l.cant,nota:modsTxt(l),env:false,est:p.est||'cocina',sin:l.sin,ext:l.ext.map(x=>prod(x)?.nombre||'')}});
+    let zona='';
+    if(b.tipo==='domicilio'){const z=DEMO_MENU.zonas[+b.zona||0]||{n:'Domicilio',c:0};zona=z.n;items.push({id:'l'+rid(),pid:'envio',nombre:'Domicilio '+z.n.split(' · ')[0],precio:z.c,cant:1,nota:'',env:true,est:null})}
+    const o={id,tipo:b.tipo,mesaId:null,mesero:'Web',cliente:b.cliente,tel:b.tel,direccion:b.tipo==='domicilio'?b.direccion:'',zona,canal:'Web',estado:'abierta',cuentaPedida:false,
+      entrega:'pendiente',creada:Date.now(),items,clave:'demo',pagoPreferido:b.pago,pagaCon:'',notaCliente:b.nota||'',aprobacion:'pendiente',comprobante:'local'};
+    try{const bz=JSON.parse(localStorage.getItem(PUENTE+'_buzon')||'[]');bz.push(o);localStorage.setItem(PUENTE+'_buzon',JSON.stringify(bz))}
+    catch(e){return{ok:false,error:'No se pudo guardar el pedido de prueba en este navegador.'}}
+    try{localStorage.setItem(PUENTE+'_cmp_'+id,b.comprobante)}catch(e){}
+    try{localStorage.setItem('dge_demo_'+id,JSON.stringify({num:'—',tipo:b.tipo,mesa:'',pagoPreferido:b.pago,items:items.map(l=>({nombre:l.nombre,cant:l.cant,precio:l.precio,nota:l.nota})),total:items.reduce((a,l)=>a+l.precio*l.cant,0)}))}catch(e){}
+    return{ok:true,pedido:{id,clave:'demo',num:'—'}};
+  }
+  const items=b.items.map(i=>{const p=prod(i.pid);const l=normLinea(i);return{nombre:p.nombre,cant:l.cant,precio:unit(l),nota:modsTxt(l)}});
+  let prev=null;if(st.pedido)prev=JSON.parse(localStorage.getItem('dge_demo_'+st.pedido.id)||'null');
+  const d=prev?{...prev,items:prev.items.concat(items),t:Date.now()}:{id:'demo'+Date.now(),num:Math.floor(20+Math.random()*60),tipo:'mesa',mesa:b.mesa.replace(/^M/,''),items,t:Date.now(),pagoPreferido:'',cuentaPedida:false,pagado:false};
   localStorage.setItem('dge_demo_'+d.id,JSON.stringify(d));
   return{ok:true,pedido:{id:d.id,clave:'demo',num:d.num}};
 }
@@ -207,9 +302,8 @@ function heroHTML(){
     <img class="logo" src="logo.png" alt="${esc(m.negocio.nombre)}"><h1>${esc(m.negocio.nombre)}</h1>
     <div class="sub">${m.mesa?`<span class="tag mesa">Mesa ${esc(m.mesa.nombre)} · ${esc(m.mesa.zona)}</span><span>Pide desde aquí, te lo llevamos a la mesa</span>`
       :`<span>${esc(m.negocio.direccion||'')}</span>`}</div>
-    ${!m.mesa?`<div class="seg" role="group" aria-label="Tipo de pedido"><button class="${st.tipo==='domicilio'?'on':''}" data-a="tipo" data-v="domicilio">Domicilio</button><button class="${st.tipo==='llevar'?'on':''}" data-a="tipo" data-v="llevar">Recoger en el local</button></div>`:''}
   </div></header>
-  ${DEMO?`<div class="demo"><div class="wrap"><b>Vista de prueba</b><span>Carta de ejemplo, sin conexión a la hoja.</span><button data-a="demoMesa">Ver como mesa 3</button><button data-a="demoWeb">Ver como domicilio</button></div></div>`:''}`;
+  ${DEMO?`<div class="demo"><div class="wrap"><b>Modo prueba</b><span>Sin hoja conectada: los pedidos le llegan a la app del restaurante abierta en este mismo navegador.</span><button data-a="demoMesa">Ver como mesa 3</button><button data-a="demoWeb">Ver como domicilio</button></div></div>`:''}`;
 }
 function vMenu(){
   const m=st.menu;const q=st.q.trim().toLowerCase();
@@ -217,13 +311,15 @@ function vMenu(){
   const secs=cats.filter(c=>!st.cat||st.cat===c.id).map(c=>{
     const ps=m.productos.filter(p=>p.cat===c.id&&(!q||(p.nombre+' '+p.desc).toLowerCase().includes(q)));
     if(!ps.length)return '';
-    return `<h2 class="sec">${esc(c.n)}</h2>${ps.map(p=>{const l=st.cart.find(x=>x.pid===p.id);
-      return `<div class="item">${p.foto?`<img class="ph" src="${esc(p.foto)}" alt="" loading="lazy">`:''}<div class="it"><b>${esc(p.nombre)}</b>${p.desc?`<span>${esc(p.desc)}</span>`:''}<span class="pr">${money(p.precio)}</span></div>
-      ${l?`<div class="step"><button data-a="dec" data-v="${p.id}" aria-label="Quitar uno">−</button><span>${l.cant}</span><button data-a="inc" data-v="${p.id}" aria-label="Agregar uno">+</button></div>`:`<button class="add" data-a="inc" data-v="${p.id}" aria-label="Agregar ${esc(p.nombre)}">+</button>`}</div>`}).join('')}`}).join('');
+    return `<h2 class="sec">${esc(c.n)}</h2>${ps.map(p=>{const op=tieneOpc(p);const n=enCarrito(p.id);const l=op?null:st.cart.find(x=>x.k===simpleK(p.id));
+      return `<div class="item">${p.foto?`<img class="ph" src="${esc(p.foto)}" alt="" loading="lazy">`:''}<div class="it ${op?'tap':''}" ${op?`data-a="opc" data-v="${p.id}"`:''}><b>${esc(p.nombre)}</b>${p.desc?`<span>${esc(p.desc)}</span>`:''}<span class="pr">${money(p.precio)}</span>${op&&n?`<span class="ya">${n} en tu pedido</span>`:''}</div>
+      ${op?`<button class="add" data-a="opc" data-v="${p.id}" aria-label="Elegir ingredientes de ${esc(p.nombre)}">+</button>`
+      :l?`<div class="step"><button data-a="dec" data-v="${p.id}" aria-label="Quitar uno">−</button><span>${l.cant}</span><button data-a="inc" data-v="${p.id}" aria-label="Agregar uno">+</button></div>`
+      :`<button class="add" data-a="inc" data-v="${p.id}" aria-label="Agregar ${esc(p.nombre)}">+</button>`}</div>`}).join('')}`}).join('');
   const n=cartN();
   return `${heroHTML()}
   <div class="wrap">
-    ${st.pedido?`<button class="track" data-a="verEstado"><span>Tu pedido <b>#${esc(st.pedido.num)}</b>${st.info?' · '+esc(ESTADO_TXT[st.info.estado]||''):''}</span><span class="go">Ver →</span></button>`:''}
+    ${st.pedido?`<button class="track" data-a="verEstado"><span>Tu pedido <b>#${esc(st.info?.num||st.pedido.num)}</b>${st.info?' · '+esc(txtEstado(st.info.estado,st.info.tipo)):''}</span><span class="go">Ver →</span></button>`:''}
     ${!m.abierto?'<div class="closed">En este momento no estamos recibiendo pedidos. Vuelve más tarde.</div>':''}
   </div>
   <div class="tools"><div class="wrap" style="display:flex;flex-direction:column;gap:10px">
@@ -233,25 +329,51 @@ function vMenu(){
   <div class="wrap list" id="list">${secs||'<p class="empty">No encontramos nada con ese nombre.</p>'}</div>
   ${n&&m.abierto?`<div class="cartbar"><button data-a="carrito"><span class="n">${n}</span><span>Ver mi pedido</span><span class="t">${money(cartT())}</span></button></div>`:''}`;
 }
+function sheetHTML(){
+  const s=st.sheet;if(!s||!st.menu)return '';const p=prod(s.pid);if(!p)return '';
+  const ing=ingDe(p.desc),ex=extrasDe(p);const u=unit(s);
+  return `<div class="sh-head"><div><h2>${esc(p.nombre)}</h2><span class="pr">${money(p.precio)}</span></div><button class="x" data-a="cerrarOpc" aria-label="Cerrar">×</button></div>
+    <div class="sh-body" id="shBody">
+      ${ing.length?`<div><h3>Ingredientes</h3><p class="small muted">Toca lo que no quieras para quitarlo.</p></div><div class="ings">${ing.map(x=>{const off=s.sin.includes(x);return `<button class="ing ${off?'off':''}" data-a="tSin" data-v="${esc(x)}" aria-pressed="${!off}"><span class="ck">${off?'✕':'✓'}</span>${esc(x)}</button>`}).join('')}</div>`:''}
+      ${ex.length?`<h3>Agrégale</h3><div class="exs">${ex.map(e=>{const on=s.ext.includes(e.id);return `<button class="ex ${on?'on':''}" data-a="tExt" data-v="${e.id}" aria-pressed="${on}"><span class="ck">${on?'✓':'+'}</span><span class="en">${esc(e.nombre)}${e.desc?`<small>${esc(e.desc)}</small>`:''}</span><span class="ep">+ ${money(e.precio)}</span></button>`}).join('')}</div>`:''}
+      <label class="field">Indicaciones (opcional)<input id="shNota" value="${esc(s.nota)}" maxlength="120" placeholder="Ej. salsas aparte, bien asado"></label>
+    </div>
+    <div class="sh-foot"><div class="step"><button data-a="shDec" aria-label="Uno menos">−</button><span>${s.cant}</span><button data-a="shInc" aria-label="Uno más">+</button></div>
+      <button class="btn primary" data-a="shOk">${s.edit?'Guardar':'Agregar'} · ${money(u*s.cant)}</button></div>`;
+}
+function pasosWeb(){
+  const m=st.menu,f=st.form,meds=medios();const tot=cartT()+envio();
+  const minZ=m.zonas.length?Math.min(...m.zonas.map(z=>z.c)):0;
+  return `<section class="card"><h3><span class="nstep">1</span>¿Cómo lo quieres?</h3>
+    <div class="tipos"><button class="tipo ${st.tipo==='domicilio'?'on':''}" data-a="tipo" data-v="domicilio" aria-pressed="${st.tipo==='domicilio'}"><b>Domicilio</b><span>Te lo llevamos${minZ?' · envío desde '+money(minZ):''}</span></button>
+    <button class="tipo ${st.tipo==='llevar'?'on':''}" data-a="tipo" data-v="llevar" aria-pressed="${st.tipo==='llevar'}"><b>Recoger en el local</b><span>Sin costo de envío</span></button></div></section>
+  ${st.tipo?`<form class="card" id="fdatos" autocomplete="on"><h3><span class="nstep">2</span>${st.tipo==='domicilio'?'¿A dónde lo llevamos?':'¿A nombre de quién?'}</h3>
+    <div class="grid2"><label class="field">Nombre<input name="nombre" data-f="nombre" value="${esc(f.nombre)}" required autocomplete="name"></label><label class="field">Celular<input name="tel" data-f="tel" value="${esc(f.tel)}" inputmode="tel" required autocomplete="tel"></label></div>
+    ${st.tipo==='domicilio'?`<label class="field">Dirección<input data-f="direccion" value="${esc(f.direccion)}" placeholder="Calle, número, apto o casa, barrio" autocomplete="street-address"></label>
+    <label class="field">Zona de entrega<select data-f="zona">${m.zonas.map((z,i)=>`<option value="${i}" ${+f.zona===i?'selected':''}>${esc(z.n)} · ${money(z.c)}</option>`).join('')}</select></label>`
+    :`<p class="small muted">Te avisamos aquí mismo cuando esté listo para recoger${m.negocio.direccion?' en '+esc(m.negocio.direccion):''}.</p>`}
+    <label class="field">Nota para el restaurante (opcional)<input data-f="nota" value="${esc(f.nota)}" placeholder="${st.tipo==='domicilio'?'Timbre dañado, llamar al llegar…':'Paso a las 7:30…'}" maxlength="200"></label>
+  </form>
+  <section class="card"><h3><span class="nstep">3</span>Paga y adjunta la captura</h3>
+    ${meds.length?`<div class="opts">${meds.map(k=>`<label class="opt"><input type="radio" name="pago" value="${k}" data-f="pago" ${f.pago===k?'checked':''}>${MED_N[k]}</label>`).join('')}</div>
+    ${f.pago?`<div class="payinfo"><span>Transfiere <b>${money(tot)}</b> por ${MED_N[f.pago]} a:</span><div class="copy"><code id="cuenta">${esc(m.pagos[f.pago])}</code><button type="button" data-a="copiar">Copiar</button></div><span class="small">A nombre de ${esc(m.negocio.nombre)}. Después toma un pantallazo del pago.</span></div>`:''}
+    <label class="drop ${st.cmp?'has':''}">${st.cmp?`<img src="${st.cmp}" alt="Tu captura del pago"><span><b>Captura lista</b><small>Toca para cambiarla</small></span>`
+      :`<span class="dz-i" aria-hidden="true">↑</span><span><b>Subir captura del pago</b><small>El pantallazo donde se vea el valor transferido</small></span>`}<input class="vh" type="file" id="cmpFile" accept="image/*"></label>`
+    :`<p class="closed">El restaurante todavía no tiene medios de pago en línea. Escríbele al ${esc(m.negocio.tel)}.</p>`}
+  </section>`:''}`;
+}
 function vCarrito(){
   const m=st.menu;const sub=cartT();const env=envio();const f=st.form;
   if(!st.cart.length){st.view='menu';return vMenu()}
+  const web=!m.mesa;const meds=medios();
+  if(web&&f.pago&&!meds.includes(f.pago))f.pago='';
+  if(web&&!f.pago&&meds.length===1)f.pago=meds[0];
   return `<div class="wrap page">
     <button class="back" data-a="menu">← Seguir pidiendo</button>
     <h2>Tu pedido${m.mesa?' · Mesa '+esc(m.mesa.nombre):''}</h2>
-    <div class="card">${st.cart.map(l=>{const p=prod(l.pid);if(!p)return '';return `<div class="line"><div><div class="nm">${esc(p.nombre)}</div><div class="lp">${money(p.precio)} c/u · ${money(p.precio*l.cant)}</div></div>
-      <div class="step"><button data-a="dec" data-v="${p.id}" aria-label="Quitar uno">−</button><span>${l.cant}</span><button data-a="inc" data-v="${p.id}" aria-label="Agregar uno">+</button></div>
-      <input data-nota="${p.id}" value="${esc(l.nota||'')}" placeholder="Nota para cocina: sin cebolla…" maxlength="120" aria-label="Nota para ${esc(p.nombre)}"></div>`}).join('')}</div>
-    ${!m.mesa?`<form class="card" id="fdatos" autocomplete="on">
-      <h3>${st.tipo==='domicilio'?'¿A dónde lo llevamos?':'¿A nombre de quién?'}</h3>
-      <div class="grid2"><label class="field">Nombre<input name="nombre" data-f="nombre" value="${esc(f.nombre)}" required autocomplete="name"></label><label class="field">Celular<input name="tel" data-f="tel" value="${esc(f.tel)}" inputmode="tel" required autocomplete="tel"></label></div>
-      ${st.tipo==='domicilio'?`<label class="field">Dirección<input data-f="direccion" value="${esc(f.direccion)}" placeholder="Calle, número, apto o casa, barrio" autocomplete="street-address"></label>
-      <label class="field">Zona de entrega<select data-f="zona">${m.zonas.map((z,i)=>`<option value="${i}" ${+f.zona===i?'selected':''}>${esc(z.n)} · ${money(z.c)}</option>`).join('')}</select></label>`
-      :'<p class="small muted">Te avisamos aquí mismo cuando esté listo para recoger.</p>'}
-      <div class="field">¿Cómo vas a pagar?<div class="opts">${[['efectivo',st.tipo==='domicilio'?'Efectivo al recibir':'Efectivo en el local'],['nequi','Nequi'],['daviplata','DaviPlata'],['breb','Bre-B']].filter(([k])=>k==='efectivo'||m.pagos[k]).map(([k,n])=>`<label class="opt"><input type="radio" name="pago" value="${k}" data-f="pago" ${f.pago===k?'checked':''}>${n}</label>`).join('')}</div></div>
-      ${f.pago==='efectivo'&&st.tipo==='domicilio'?`<label class="field">¿Con cuánto pagas? (para llevar el cambio)<input data-f="pagaCon" value="${esc(f.pagaCon)}" inputmode="numeric" placeholder="Ej. 50000"></label>`:''}
-      <label class="field">Nota para el restaurante (opcional)<input data-f="nota" value="${esc(f.nota)}" placeholder="Timbre dañado, llamar al llegar…" maxlength="200"></label>
-    </form>`:''}
+    <div class="card">${st.cart.map(l=>{const p=prod(l.pid);if(!p)return '';const mt=modsTxt(l);return `<div class="line"><div><div class="nm">${esc(p.nombre)}</div>${mt?`<div class="mods">${esc(mt)}</div>`:''}<div class="lp">${money(unit(l))} c/u · ${money(unit(l)*l.cant)}${tieneOpc(p)?` · <button class="lnk" data-a="editar" data-v="${esc(l.k)}">Cambiar</button>`:''}</div></div>
+      <div class="step"><button data-a="lDec" data-v="${esc(l.k)}" aria-label="Quitar uno">−</button><span>${l.cant}</span><button data-a="lInc" data-v="${esc(l.k)}" aria-label="Agregar uno">+</button></div></div>`}).join('')}</div>
+    ${web?pasosWeb():''}
     <div class="card sum">
       <div><span class="muted">Productos</span><span>${money(sub)}</span></div>
       ${env?`<div><span class="muted">Domicilio</span><span>${money(env)}</span></div>`:''}
@@ -259,68 +381,108 @@ function vCarrito(){
       ${m.impoconsumo||(m.mesa&&m.propina)?`<span class="small muted">${m.impoconsumo?'Precios con impoconsumo incluido.':''}${m.mesa&&m.propina?' La propina es voluntaria y se ofrece al pagar.':''}</span>`:''}
     </div>
     ${st.err?`<div class="closed" role="alert">${esc(st.err)}</div>`:''}
-    <button class="btn primary big" data-a="enviar" ${st.sending?'disabled':''}>${st.sending?'Enviando…':m.mesa?'Enviar pedido a cocina':'Hacer pedido · '+money(sub+env)}</button>
+    <button class="btn primary big" data-a="enviar" ${st.sending?'disabled':''}>${st.sending?'Enviando…':m.mesa?'Enviar pedido a cocina':'Enviar pedido y comprobante'}</button>
+    ${web?'<p class="small muted" style="text-align:center;margin:0">El restaurante revisa tu pago y pasa el pedido a cocina. Aquí ves cada paso.</p>':''}
   </div>`;
 }
-const ESTADO_TXT={por_confirmar:'Esperando confirmación',recibido:'Recibido en cocina',preparando:'En preparación',listo:'Listo',camino:'En camino',entregado:'Entregado',pagado:'Cuenta pagada',anulado:'Anulado'};
-function pasos(tipo){
-  if(tipo==='mesa')return[['recibido','Recibido en cocina','Tu comanda ya está en la pantalla de cocina'],['preparando','En preparación','Estamos cocinando'],['listo','Listo','El mesero te lo lleva a la mesa']];
-  const base=[['recibido','Pedido recibido','Llegó a cocina y a caja'],['preparando','En preparación','Estamos cocinando'],['listo',tipo==='llevar'?'Listo para recoger':'Listo','Empacado y revisado']];
-  if(tipo==='domicilio')base.push(['camino','En camino','El domiciliario va para tu dirección']);
-  base.push(['entregado','Entregado','¡Buen provecho!']);
-  return base;
+const ESTADO_TXT={por_aprobar:'Revisando tu pago',rechazado:'Pedido no aprobado',por_confirmar:'Esperando confirmación',recibido:'Pago aprobado, en cocina',preparando:'En preparación',listo:'Listo',camino:'En camino',entregado:'Entregado',pagado:'Cuenta pagada',anulado:'Anulado'};
+const txtEstado=(e,tipo)=>tipo==='mesa'&&e==='recibido'?'Recibido en cocina':ESTADO_TXT[e]||'';
+function pasos(i){
+  if(i.tipo==='mesa')return[['recibido','Recibido en cocina','Tu comanda ya está en la pantalla de cocina'],['preparando','En preparación','Estamos cocinando'],['listo','Listo','El mesero te lo lleva a la mesa']];
+  const ps=[['por_aprobar','Pago en revisión','Estamos verificando tu transferencia'],['recibido','Pago aprobado','Tu pedido pasó a cocina'],['preparando','En preparación','Estamos cocinando'],
+    ['listo',i.tipo==='llevar'?'Listo para recoger':'Listo y empacado',i.tipo==='llevar'?'Acércate al local y di tu nombre':'Esperando al domiciliario']];
+  if(i.tipo==='domicilio')ps.push(['camino','En camino',(i.domiciliario?esc(i.domiciliario):'El domiciliario')+' va para tu dirección']);
+  ps.push(['entregado','Entregado','¡Buen provecho!']);
+  return ps;
 }
 function vEstado(){
   const i=st.info;const m=st.menu;
   if(!i)return `<div class="wrap page"><button class="back" data-a="menu">← Volver a la carta</button><p class="empty">Cargando tu pedido…</p></div>`;
-  let ps=pasos(i.tipo);if(i.estado==='por_confirmar')ps=[['por_confirmar','Esperando confirmación','El restaurante revisa tu pedido'],...ps];
+  let ps=pasos(i);if(i.estado==='por_confirmar')ps=[['por_confirmar','Esperando confirmación','El restaurante revisa tu pedido'],...ps];
   const orden=ps.map(p=>p[0]);let cur=orden.indexOf(i.estado);if(i.estado==='pagado')cur=orden.length;
-  const pagoInfo=i.tipo!=='mesa'&&['nequi','daviplata','breb'].includes(i.pagoPreferido)&&m.pagos[i.pagoPreferido];
+  const fin=['anulado','rechazado'].includes(i.estado);
   return `<div class="wrap page">
     <button class="back" data-a="menu">← ${i.tipo==='mesa'?'Pedir algo más':'Volver a la carta'}</button>
-    <div class="status"><span class="no">Pedido #${esc(i.num)}${i.mesa?' · Mesa '+esc(i.mesa):''}</span><h2>${esc(ESTADO_TXT[i.estado]||'')}</h2>
+    <div class="status"><span class="no">Pedido #${esc(i.num||'—')}${i.mesa?' · Mesa '+esc(i.mesa):''}</span><h2>${esc(txtEstado(i.estado,i.tipo))}</h2>
       ${i.estado==='anulado'?'<p class="muted">Este pedido fue anulado. Si es un error, escríbenos.</p>':''}</div>
-    ${i.estado!=='anulado'?`<div class="card"><ol class="steps">${ps.map((p,k)=>`<li class="${k<cur||(k===cur&&k===ps.length-1)?'done':k===cur?'now':''}"><span class="dot">${k<cur?'✓':k+1}</span><div><b>${p[1]}</b><span>${p[2]}</span></div></li>`).join('')}</ol></div>`:''}
-    ${pagoInfo?`<div class="payinfo"><b>Paga por ${{nequi:'Nequi',daviplata:'DaviPlata',breb:'Bre-B'}[i.pagoPreferido]}</b><div class="copy"><code id="cuenta">${esc(m.pagos[i.pagoPreferido])}</code><button data-a="copiar">Copiar</button></div><span class="small">Transfiere ${money(i.total)} y envía el comprobante por WhatsApp al ${esc(m.negocio.tel)} con tu número de pedido #${esc(i.num)}.</span></div>`:''}
+    ${i.estado==='rechazado'?`<div class="closed" role="alert"><b>No pudimos aprobar tu pedido.</b><br>${esc(i.motivoRechazo||'')}</div><p class="small muted" style="margin:0">Si ya pagaste, escríbenos al <b>${esc(m.negocio.tel)}</b> con tu nombre y el pantallazo, y lo resolvemos.</p>`:''}
+    ${!fin?`<div class="card"><ol class="steps">${ps.map((p,k)=>`<li class="${k<cur||(k===cur&&k===ps.length-1)?'done':k===cur?'now':''}"><span class="dot">${k<cur?'✓':k+1}</span><div><b>${p[1]}</b><span>${p[2]}</span></div></li>`).join('')}</ol></div>`:''}
+    ${i.tipo!=='mesa'&&!fin&&MED_N[i.pagoPreferido]?`<div class="payinfo ${i.estado==='por_aprobar'?'':'ok'}"><b>${i.estado==='por_aprobar'?'Comprobante enviado':'Pago aprobado'} · ${MED_N[i.pagoPreferido]}</b><span class="small">${i.estado==='por_aprobar'?'En cuanto lo verifiquemos tu pedido pasa a cocina.':'Gracias, ya no tienes que pagar nada más.'}</span></div>`:''}
     <div class="card"><h3>${i.tipo==='mesa'?'Lo que va pedido en la mesa':'Detalle'}</h3>
       ${i.items.map(l=>`<div class="line"><div><div class="nm">${l.cant}× ${esc(l.nombre)}</div>${l.nota?`<div class="lp">${esc(l.nota)}</div>`:''}</div><span class="num">${money(l.precio*l.cant)}</span></div>`).join('')}
       <div class="sum"><div class="tot"><span>Total</span><span>${money(i.total)}</span></div></div></div>
     ${i.tipo==='mesa'&&i.estado!=='pagado'?`<div class="row"><button class="btn" data-a="aviso" data-v="mesero">Llamar al mesero</button><button class="btn" data-a="aviso" data-v="cuenta" ${i.cuentaPedida?'disabled':''}>${i.cuentaPedida?'Cuenta pedida ✓':'Pedir la cuenta'}</button></div>`:''}
-    ${['entregado','pagado','anulado'].includes(i.estado)?`<button class="btn primary big" data-a="nuevo">Hacer un pedido nuevo</button>`:''}
+    ${['entregado','pagado','anulado','rechazado'].includes(i.estado)?`<button class="btn primary big" data-a="nuevo">Hacer un pedido nuevo</button>`:''}
   </div>`;
+}
+function renderSheet(){
+  const el=document.getElementById('sheet');const b=document.getElementById('shBody');const y=b?b.scrollTop:0;
+  const s=st.sheet;const p=s&&st.menu?prod(s.pid):null;
+  if(!p){el.innerHTML='';el.dataset.k='';document.body.classList.remove('lock');return}
+  const k=s.pid+'#'+(s.edit||'');const box=el.querySelector('.sheet');
+  // Al tocar un ingrediente solo se redibuja el contenido: la hoja no vuelve a animarse
+  if(box&&el.dataset.k===k)box.innerHTML=sheetHTML();
+  else{el.innerHTML=`<div class="sheet-bg" data-a="cerrarOpc"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(p.nombre)}">${sheetHTML()}</div>`;el.dataset.k=k}
+  const nb=document.getElementById('shBody');if(nb)nb.scrollTop=y;
+  document.body.classList.add('lock');
 }
 function render(){
   const a=document.activeElement;const keep=a&&a.id==='q'?a.selectionStart:null;
   document.getElementById('app').innerHTML=!st.menu?`<div class="wrap page"><p class="empty">${st.err?esc(st.err):'Cargando la carta…'}</p></div>`:({menu:vMenu,carrito:vCarrito,estado:vEstado}[st.view])();
   if(keep!==null){const q=document.getElementById('q');if(q){q.focus();q.setSelectionRange(keep,keep)}}
+  renderSheet();
+}
+
+/* ===== captura del pago: se reduce en el teléfono antes de enviarla ===== */
+async function comprimir(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
+    const k=Math.min(1,1400/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',0.72);
+  }finally{URL.revokeObjectURL(url)}
 }
 
 /* ===== acciones ===== */
 const A={
-  tipo:v=>{st.tipo=v;persist();render()},
+  tipo:v=>{st.tipo=v;st.err=null;persist();render()},
   cat:v=>{st.cat=v||null;render()},
-  inc:v=>{const l=st.cart.find(x=>x.pid===v);if(l)l.cant=Math.min(20,l.cant+1);else st.cart.push({pid:v,cant:1,nota:''});persist();render()},
-  dec:v=>{const l=st.cart.find(x=>x.pid===v);if(!l)return;l.cant--;if(l.cant<=0)st.cart=st.cart.filter(x=>x!==l);persist();render()},
+  inc:v=>{agregarLinea({pid:v,cant:1});persist();render()},
+  dec:v=>{const l=st.cart.find(x=>x.k===simpleK(v));if(!l)return;l.cant--;if(l.cant<=0)st.cart=st.cart.filter(x=>x!==l);persist();render()},
+  lInc:k=>{const l=st.cart.find(x=>x.k===k);if(l)l.cant=Math.min(20,l.cant+1);persist();render()},
+  lDec:k=>{const l=st.cart.find(x=>x.k===k);if(!l)return;l.cant--;if(l.cant<=0)st.cart=st.cart.filter(x=>x!==l);persist();render()},
+  opc:v=>{if(!st.menu.abierto){toast('En este momento no estamos recibiendo pedidos','bad');return}st.sheet={pid:v,sin:[],ext:[],cant:1,nota:'',edit:null};renderSheet()},
+  editar:k=>{const l=st.cart.find(x=>x.k===k);if(!l)return;st.sheet={pid:l.pid,sin:[...l.sin],ext:[...l.ext],cant:l.cant,nota:l.nota,edit:k};renderSheet()},
+  tSin:v=>{const s=st.sheet;s.sin=s.sin.includes(v)?s.sin.filter(x=>x!==v):[...s.sin,v];renderSheet()},
+  tExt:v=>{const s=st.sheet;s.ext=s.ext.includes(v)?s.ext.filter(x=>x!==v):[...s.ext,v];renderSheet()},
+  shInc:()=>{st.sheet.cant=Math.min(20,st.sheet.cant+1);renderSheet()},
+  shDec:()=>{st.sheet.cant=Math.max(1,st.sheet.cant-1);renderSheet()},
+  cerrarOpc:()=>{st.sheet=null;renderSheet()},
+  shOk:()=>{const s=st.sheet;if(s.edit)st.cart=st.cart.filter(x=>x.k!==s.edit);
+    agregarLinea({pid:s.pid,cant:s.cant,sin:s.sin,ext:s.ext,nota:s.nota.trim()});st.sheet=null;persist();render();toast(s.edit?'Cambios guardados':'Agregado a tu pedido')},
   carrito:()=>{st.view='carrito';st.err=null;render();scrollTo(0,0)},
   menu:()=>{st.view='menu';render();scrollTo(0,0)},
   verEstado:()=>{st.view='estado';render();scrollTo(0,0);estado()},
   enviar:async()=>{
     const m=st.menu,f=st.form;st.err=null;
     if(!m.mesa){
+      if(!st.tipo)return fail('Elige si es a domicilio o lo recoges en el local.');
       if(!f.nombre.trim())return fail('Escribe tu nombre.');
       if(f.tel.replace(/\D/g,'').length<7)return fail('Escribe un celular válido.');
       if(st.tipo==='domicilio'&&!f.direccion.trim())return fail('Escribe la dirección de entrega.');
-      const tot=cartT()+envio();const con=+String(f.pagaCon).replace(/\D/g,'');
-      if(f.pago==='efectivo'&&st.tipo==='domicilio'&&con&&con<tot)return fail('El valor con el que pagas es menor al total.');
+      if(!medios().includes(f.pago))return fail('Elige por dónde pagaste.');
+      if(!st.cmp)return fail('Sube la captura del pago para enviar el pedido.');
     }
     st.sending=true;render();
     try{
-      const body={action:'pedidoCliente',items:st.cart.map(l=>({pid:l.pid,cant:l.cant,nota:l.nota||''}))};
+      const body={action:'pedidoCliente',items:st.cart.map(l=>({pid:l.pid,cant:l.cant,sin:l.sin,ext:l.ext,nota:l.nota||''}))};
       if(m.mesa)Object.assign(body,{mesa:MESA,codigo:COD});
-      else Object.assign(body,{tipo:st.tipo,cliente:f.nombre.trim(),tel:f.tel.trim(),direccion:f.direccion.trim(),zona:f.zona,pago:f.pago,pagaCon:String(f.pagaCon).replace(/\D/g,''),nota:f.nota.trim()});
+      else Object.assign(body,{tipo:st.tipo,cliente:f.nombre.trim(),tel:f.tel.trim(),direccion:f.direccion.trim(),zona:f.zona,pago:f.pago,nota:f.nota.trim(),comprobante:st.cmp});
       const r=await apiPost(body);if(!r.ok)throw new Error(r.error||'No se pudo enviar el pedido.');
-      st.pedido=r.pedido;st.cart=[];st.info=null;st.view='estado';persist();
-      toast(m.mesa?'Listo, tu pedido ya está en cocina':'Pedido #'+r.pedido.num+' recibido');
+      st.pedido=r.pedido;st.cart=[];st.cmp=null;st.info=null;st.view='estado';persist();
+      toast(m.mesa?'Listo, tu pedido ya está en cocina':'Pedido enviado. Estamos revisando tu pago');
       scrollTo(0,0);await estado();
     }catch(e){st.err=e.message==='Failed to fetch'?'No hay conexión. Revisa tu internet e intenta de nuevo.':e.message}
     finally{st.sending=false;render()}
@@ -341,8 +503,8 @@ async function estado(){
   try{const r=await apiGet({action:'pedido',id:st.pedido.id,k:st.pedido.clave});
     if(!r.ok){if(/No encontramos/.test(r.error||'')){st.pedido=null;persist()}return}
     const antes=st.info?.estado;st.info=r.pedido;
-    if(antes&&antes!==r.pedido.estado){toast(ESTADO_TXT[r.pedido.estado]);try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
-    const a=document.activeElement;if(!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();
+    if(antes&&antes!==r.pedido.estado){toast(txtEstado(r.pedido.estado,r.pedido.tipo));try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
+    const a=document.activeElement;if(!st.sheet&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();
   }catch(e){}
 }
 
@@ -350,14 +512,17 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b
 document.addEventListener('input',e=>{
   const t=e.target;
   if(t.id==='q'){st.q=t.value;const y=scrollY;render();scrollTo(0,y)}
-  if(t.dataset.nota){const l=st.cart.find(x=>x.pid===t.dataset.nota);if(l){l.nota=t.value;persist()}}
+  if(t.id==='shNota'&&st.sheet)st.sheet.nota=t.value;
   if(t.dataset.f){st.form[t.dataset.f]=t.value;persist();if(['zona','pago'].includes(t.dataset.f))render()}
 });
-document.addEventListener('change',e=>{const t=e.target;if(t.dataset.f){st.form[t.dataset.f]=t.value;persist();if(['zona','pago'].includes(t.dataset.f))render()}});
+document.addEventListener('change',async e=>{const t=e.target;
+  if(t.id==='cmpFile'&&t.files&&t.files[0]){try{st.cmp=await comprimir(t.files[0]);st.err=null;render()}catch(x){toast('No pudimos leer esa imagen. Prueba con otro pantallazo.','bad')}return}
+  if(t.dataset.f){st.form[t.dataset.f]=t.value;persist();if(['zona','pago'].includes(t.dataset.f))render()}});
 document.addEventListener('submit',e=>e.preventDefault());
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&st.sheet){st.sheet=null;renderSheet()}});
 
 async function boot(){
-  st.menu=null;st.err=null;st.view='menu';st.info=null;restore();render();
+  st.menu=null;st.err=null;st.view='menu';st.info=null;st.sheet=null;restore();render();
   try{
     const r=await apiGet(Object.assign({action:'menu'},MESA?{m:MESA,c:COD}:{}));
     if(!r.ok)throw new Error(r.error||'No se pudo cargar la carta.');
@@ -368,6 +533,7 @@ async function boot(){
   render();
 }
 setInterval(()=>{if(st.pedido&&!document.hidden)estado()},8000);
+window.addEventListener('storage',e=>{if(DEMO&&e.key===PUENTE+'_estados')estado()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)estado()});
 boot();
 </script>

@@ -226,6 +226,14 @@ h3{font-size:1rem;font-weight:700}
 
 /* pedidos */
 .kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.kanban.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1250px){.kanban.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pd.por-aprobar{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.pd-items div+div{margin-top:3px}
+.pd.rp .rp-dir{font-size:1.08rem;font-weight:700;line-height:1.25}
+.pd .row a.btn{text-decoration:none;color:var(--fg)}
+.cmp{display:grid;place-items:center;background:var(--surface-2);border-radius:12px;min-height:180px;overflow:hidden}
+.cmp-img{max-width:100%;max-height:62vh;object-fit:contain;display:block}
 .pd{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:7px}
 .pd header{display:flex;align-items:center;gap:8px;justify-content:space-between}
 .pd .svc{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
@@ -380,7 +388,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 
 @media (max-width:1100px){.split,.rep{grid-template-columns:minmax(0,1fr)}.qr-wrap{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:980px){.pos{grid-template-columns:minmax(0,1fr)}.ticket{position:static;max-height:none}.fab{display:block;position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:6;background:var(--fg);color:var(--bg);border:0;border-radius:30px;padding:12px 18px;font-weight:700;box-shadow:0 8px 20px rgba(0,0,0,.25);cursor:pointer}
-  .kds,.kanban{grid-template-columns:minmax(0,1fr)}}
+  .kds,.kanban,.kanban.k4{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:860px){
   .app{grid-template-columns:minmax(0,1fr)}
   .side{position:fixed;left:0;right:0;bottom:0;z-index:20;flex-direction:row;padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px));gap:0;overflow-x:auto}
@@ -450,7 +458,7 @@ const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
 
 const MET={efectivo:'Efectivo',nequi:'Nequi',daviplata:'DaviPlata',breb:'Bre-B',tarjeta:'Tarjeta'};
 const METC={efectivo:'#3E7D4F',nequi:'#7A1FA2',daviplata:'#D52B1E',breb:'#0B5CAD',tarjeta:'#33424A'};
-const ROL_N={admin:'Administrador',mesero:'Mesero',cocina:'Cocina',caja:'Caja'};
+const ROL_N={admin:'Administrador',mesero:'Mesero',cocina:'Cocina',caja:'Caja',domiciliario:'Domiciliario'};
 const USUARIOS_DEMO=()=>[
   {id:'u-admin',nombre:'Administrador',rol:'admin',pinHash:'fbe24b189c294fe750d687fcfb6aef9439ff1c06d046d98fac5cf59a41c16948',activo:true}
 ];
@@ -548,7 +556,7 @@ function seed(){
   const mesas=[];
   [4,4,4,4].forEach((s,i)=>mesas.push({id:'M'+(i+1),nombre:String(i+1),zona:'Salón',sillas:s}));
   const meseros=['Administrador'];
-  const config={nombre:'Date el Gusto',nit:'',direccion:'',tel:'300 337 8831',impoconsumo:0,propina:0,base:200000,bloqueo:15,urlCliente:'https://street25tv.github.io/dateelgusto/cliente.html',abiertoWeb:1,confirmarWeb:0,nequi:'302 402 0650',daviplata:'',breb:'',
+  const config={nombre:'Date el Gusto',nit:'',direccion:'',tel:'300 337 8831',impoconsumo:0,propina:0,base:200000,bloqueo:15,urlCliente:'https://street25tv.github.io/dateelgusto/cliente.html',abiertoWeb:1,confirmarWeb:0,nequi:'302 402 0650',daviplata:'',breb:'',catExtras:'adic',
     zonas:[{n:'Zona 1 · hasta 2 km',c:3000},{n:'Zona 2 · 2 a 5 km',c:5000},{n:'Zona 3 · 5 a 8 km',c:8000}]};
   return{v:1,cats,insumos,productos,mesas,meseros,ordenes:[],comandas:[],reservas:[],config,usuarios:USUARIOS_DEMO(),seq:101,num:1,turno:Date.now(),contado:''};
 }
@@ -572,6 +580,7 @@ function cambios(){
 }
 function save(){
   try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}
+  publicarEstados();
   if(API.url&&SNAP){clearTimeout(flushT);flushT=setTimeout(flush,300)}
 }
 async function flush(){
@@ -596,7 +605,7 @@ async function poll(){
 }
 function aplicar(st){
   const primera=!SNAP;const antes=S.comandas.map(c=>c.id);
-  const prevO={};S.ordenes.forEach(o=>{prevO[o.id]={llamado:o.llamado,cuenta:o.cuentaPedida}});
+  const prevO={};S.ordenes.forEach(o=>{prevO[o.id]={llamado:o.llamado,cuenta:o.cuentaPedida,st:pedidoEstado(o)}});
   S.cats=st.cats;
   S.productos=st.productos.map(p=>({...p,precio:+p.precio,desc:p.desc||'',disp:!!p.disp,receta:Array.isArray(p.receta)?p.receta:[]}));
   S.insumos=st.insumos.map(i=>({...i,stock:+i.stock||0,min:+i.min||0,costo:+i.costo||0}));
@@ -607,7 +616,7 @@ function aplicar(st){
   S.reservas=st.reservas.map(r=>({...r,t:+r.t,personas:+r.personas||1,mesaId:r.mesaId||null}));
   if(Array.isArray(st.usuarios)&&st.usuarios.length)S.usuarios=st.usuarios.map(u=>({id:String(u.id),nombre:String(u.nombre),rol:u.rol,pinHash:u.pinHash,activo:!!u.activo}));
   const c=st.config||{};
-  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb'].forEach(k=>{
+  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras'].forEach(k=>{
     if(c[k]===undefined)return;if(c[k]===''&&typeof S.config[k]==='number')return;S.config[k]=c[k]});
   S.turno=+c.turno||S.turno;S.contado=c.contado||'';S.seq=(+c.seqComanda||100)+1;S.num=(+c.numOrden||0)+1;
   VER=st.v;SNAP=snap();
@@ -618,7 +627,7 @@ function aplicar(st){
     if(nuevas.length&&(U.role==='cocina'||U.view==='cocina'))avisos.push(nuevas.length===1?'Nueva comanda #'+nuevas[0].num:nuevas.length+' comandas nuevas');
     if(U.role!=='cocina'){
       S.ordenes.filter(o=>o.estado==='abierta').forEach(o=>{const p=prevO[o.id];
-        if(!p&&o.canal==='Web')avisos.push('Pedido web: '+(o.cliente||'cliente')+' · '+(o.tipo==='domicilio'?'domicilio':'para recoger'));
+        if(!p&&o.canal==='Web')avisos.push(o.aprobacion==='pendiente'?'Pedido web por aprobar: '+(o.cliente||'cliente')+' · '+money(total(o)):'Pedido web: '+(o.cliente||'cliente')+' · '+(o.tipo==='domicilio'?'domicilio':'para recoger'));
         if(o.canal==='Carta QR'||o.tipo==='mesa'){
           if(nuevas.some(c=>c.ordenId===o.id&&c.origen==='qr'))avisos.push(label(o)+' pidió desde el QR');
           if(o.llamado&&(!p||p.llamado!==o.llamado))avisos.push(label(o)+' llama al mesero');
@@ -626,6 +635,7 @@ function aplicar(st){
         }
       });
     }
+    if(U.role==='domiciliario'||U.view==='reparto')S.ordenes.filter(o=>o.tipo==='domicilio'&&pedidoEstado(o)==='listo'&&o.entrega!=='en_camino'&&prevO[o.id]&&prevO[o.id].st!=='listo').forEach(o=>avisos.push('Listo para salir: pedido '+o.num+' · '+(o.direccion||'')));
     if(avisos.length){beep();[...new Set(avisos)].slice(0,3).forEach(a=>toast(a))}
   }
   const a=document.activeElement;
@@ -711,12 +721,49 @@ function enviarCocina(o){
 }
 function cerrarComandas(o){cmdsOf(o).forEach(c=>{c.estado='entregado'})}
 
+/* ---------- comprobantes de pago ---------- */
+const CMP={};
+async function cargarComprobante(o){
+  if(CMP[o.id]&&CMP[o.id]!=='cargando')return;
+  if(!API.url){let d=null;try{d=localStorage.getItem(K+'_cmp_'+o.id)}catch(e){}CMP[o.id]=d||'x';renderModal();return}
+  if(!o.comprobante){CMP[o.id]='x';renderModal();return}
+  CMP[o.id]='cargando';
+  try{const r=await fetch(API.url+'?action=comprobante&token='+encodeURIComponent(API.token)+'&id='+encodeURIComponent(o.id));const j=await r.json();CMP[o.id]=j.ok&&j.data?j.data:'x'}
+  catch(e){delete CMP[o.id];toast('No se pudo cargar el comprobante. Revisa el internet.','bad')}
+  if(U.modal&&U.modal.type==='comprobante')renderModal();
+}
+
+/* ---------- puente de prueba: la carta del cliente y la app en el mismo navegador, sin hoja ---------- */
+function estadoCliente(o){const cs=cmdsOf(o);let e;
+  if(o.aprobacion==='rechazado')e='rechazado';else if(o.estado==='anulada')e='anulado';
+  else if(o.entrega==='entregado')e='entregado';else if(o.entrega==='en_camino')e='camino';
+  else if(o.aprobacion==='pendiente')e='por_aprobar';else if(o.items.some(l=>!l.env&&l.est))e='por_confirmar';
+  else if(!cs.length)e='recibido';else if(cs.every(c=>c.estado==='listo'||c.estado==='entregado'))e='listo';
+  else if(cs.some(c=>c.estado!=='nuevo'))e='preparando';else e='recibido';
+  return{num:o.num,tipo:o.tipo,estado:e,mesa:'',items:o.items.map(l=>({nombre:l.nombre,cant:l.cant,precio:l.precio,nota:l.nota})),total:total(o),
+    pagoPreferido:o.pagoPreferido||'',motivoRechazo:o.motivoRechazo||'',domiciliario:o.domiciliario||'',pagado:o.estado==='pagada',cuentaPedida:false}}
+function publicarEstados(){
+  if(API.url)return;const m={};const lim=now()-2*86400000;
+  S.ordenes.filter(o=>o.canal==='Web'&&o.creada>lim).forEach(o=>{m[o.id]=estadoCliente(o)});
+  try{localStorage.setItem(K+'_estados',JSON.stringify(m))}catch(e){}
+}
+function recibirBuzon(){
+  if(API.url)return;let bz=[];try{bz=JSON.parse(localStorage.getItem(K+'_buzon')||'[]')}catch(e){}
+  if(!Array.isArray(bz)||!bz.length)return;try{localStorage.removeItem(K+'_buzon')}catch(e){}
+  let n=0;bz.forEach(o=>{if(!o||!o.id||S.ordenes.some(x=>x.id===o.id))return;o.num=S.num++;S.ordenes.push(o);n++});
+  if(!n)return;save();
+  if(yo()&&U.role!=='cocina'){beep();toast(n===1?'Nuevo pedido web por aprobar':n+' pedidos web por aprobar')}
+  const a=document.activeElement;if(!U.modal&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();else renderNav();
+}
+window.addEventListener('storage',e=>{if(e.key===K+'_buzon')recibirBuzon();if(e.key===K&&!API.url&&e.newValue){try{const n=JSON.parse(e.newValue);if(n&&n.v===1){S=n;render()}}catch(x){}}});
+
 /* ---------- navegación ---------- */
 const I={
   mesas:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   cocina:'<path d="M12 3c2 3 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.5 1 2.5 2 3 0-3 0-5 1-7.5z"/>',
   caja:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/>',
   pedidos:'<circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l4-8h5l3 8M10 9H8M15 9l-1-3h-2"/>',
+  reparto:'<path d="M3 6h11v10H3zM14 9h4l3 3.5V16h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/>',
   qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v.01M14 21h.01M17 21h4v-4"/>',
   reservas:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   inventario:'<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10"/>',
@@ -724,9 +771,9 @@ const I={
   config:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>'
 };
 const ico=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
-const NAV=[['mesas','Mesas'],['cocina','Cocina'],['caja','Caja'],['pedidos','Domicilios'],['qr','Carta QR'],['reservas','Reservas'],['inventario','Inventario'],['reportes','Reportes'],['config','Ajustes']];
-const ROLES={admin:NAV.map(n=>n[0]),mesero:['mesas','pedidos','qr','reservas'],cocina:['cocina','inventario'],caja:['mesas','caja','pedidos','reservas','reportes']};
-const TITLES={mesas:['Mesas','Estado de las mesas en tiempo real'],pedido:['Tomar pedido','Agrega productos y envía la comanda'],cocina:['Cocina','Pantalla de comandas por estación'],caja:['Caja','Cobros, propinas y cuentas abiertas'],pedidos:['Domicilios y para llevar','Pedidos de WhatsApp, teléfono, mostrador y apps'],qr:['Carta QR','Lo que ve el cliente al escanear la mesa'],reservas:['Reservas','Agenda de mesas y recordatorios'],inventario:['Inventario','Insumos, recetas y costo por plato'],reportes:['Reportes','Ventas del turno y cierre de caja'],config:['Ajustes','Datos del negocio, mesas, equipo e impresión']};
+const NAV=[['mesas','Mesas'],['cocina','Cocina'],['caja','Caja'],['pedidos','Domicilios'],['reparto','Reparto'],['qr','Carta QR'],['reservas','Reservas'],['inventario','Inventario'],['reportes','Reportes'],['config','Ajustes']];
+const ROLES={admin:NAV.map(n=>n[0]),mesero:['mesas','pedidos','qr','reservas'],cocina:['cocina','inventario'],caja:['mesas','caja','pedidos','reservas','reportes'],domiciliario:['reparto']};
+const TITLES={mesas:['Mesas','Estado de las mesas en tiempo real'],pedido:['Tomar pedido','Agrega productos y envía la comanda'],cocina:['Cocina','Pantalla de comandas por estación'],caja:['Caja','Cobros, propinas y cuentas abiertas'],pedidos:['Domicilios y para llevar','Pedidos web por aprobar, WhatsApp, teléfono y mostrador'],reparto:['Reparto','Pedidos listos para salir y entregas en camino'],qr:['Carta QR','Lo que ve el cliente al escanear la mesa'],reservas:['Reservas','Agenda de mesas y recordatorios'],inventario:['Inventario','Insumos, recetas y costo por plato'],reportes:['Reportes','Ventas del turno y cierre de caja'],config:['Ajustes','Datos del negocio, mesas, equipo e impresión']};
 
 function renderNav(){
   const allowed=ROLES[U.role];
@@ -735,7 +782,7 @@ function renderNav(){
   const listos=S.comandas.filter(c=>c.estado==='listo').length;
   const cur=U.view==='pedido'?U.back:U.view;
   document.getElementById('nav').innerHTML=NAV.filter(([v])=>allowed.includes(v)).map(([v,n])=>{
-    let b='';if(v==='cocina'&&nuevas)b=`<span class="badge warn">${nuevas}</span>`;if(v==='caja'&&cuentas)b=`<span class="badge warn">${cuentas}</span>`;if(v==='mesas'&&listos)b=`<span class="badge">${listos}</span>`;
+    let b='';if(v==='cocina'&&nuevas)b=`<span class="badge warn">${nuevas}</span>`;if(v==='caja'&&cuentas)b=`<span class="badge warn">${cuentas}</span>`;if(v==='mesas'&&listos)b=`<span class="badge">${listos}</span>`;if(v==='pedidos'&&porAprobar().length)b=`<span class="badge warn">${porAprobar().length}</span>`;if(v==='reparto'&&paraSalir().length)b=`<span class="badge">${paraSalir().length}</span>`;
     return `<button class="${cur===v?'on':''}" data-act="nav" data-id="${v}" ${cur===v?'aria-current="page"':''}>${ico(v)}<span>${n}</span>${b}</button>`}).join('');
 }
 function render(){
@@ -748,7 +795,7 @@ function render(){
   document.getElementById('title').textContent=t;
   document.getElementById('subtitle').textContent=s;
   document.getElementById('brandSub').textContent='Punto de venta';
-  const V={mesas:vMesas,pedido:vPedido,cocina:vCocina,caja:vCaja,pedidos:vPedidos,qr:vQR,reservas:vReservas,inventario:vInventario,reportes:vReportes,config:vConfig}[U.view];
+  const V={mesas:vMesas,pedido:vPedido,cocina:vCocina,caja:vCaja,pedidos:vPedidos,reparto:vReparto,qr:vQR,reservas:vReservas,inventario:vInventario,reportes:vReportes,config:vConfig}[U.view];
   document.getElementById('view').innerHTML=V();
   renderNav(); renderModal();
   if(U.view==='qr')drawQR();
@@ -874,21 +921,33 @@ function vCaja(){
 }
 
 /* ---------- DOMICILIOS ---------- */
-function pedidoEstado(o){const cs=cmdsOf(o);if(o.entrega==='en_camino')return 'camino';if(o.items.some(l=>!l.env&&l.est)||!cs.length)return 'cocina';return cs.every(c=>c.estado==='listo'||c.estado==='entregado')?'listo':'cocina'}
+function pedidoEstado(o){const cs=cmdsOf(o);if(o.aprobacion==='pendiente')return 'aprobar';if(o.entrega==='en_camino')return 'camino';if(o.items.some(l=>!l.env&&l.est)||!cs.length)return 'cocina';return cs.every(c=>c.estado==='listo'||c.estado==='entregado')?'listo':'cocina'}
+const porAprobar=()=>S.ordenes.filter(o=>o.aprobacion==='pendiente'&&o.estado!=='anulada');
+const paraSalir=()=>S.ordenes.filter(o=>o.tipo==='domicilio'&&o.estado!=='anulada'&&o.entrega!=='entregado'&&o.entrega!=='en_camino'&&pedidoEstado(o)==='listo');
+const puedeAprobar=()=>{const u=yo();return !!u&&['admin','caja'].includes(u.rol)};
+const itemsTxt=o=>o.items.filter(l=>l.est).map(l=>`<div>${l.cant}× ${esc(l.nombre)}${l.nota?` <span class="muted">· ${esc(l.nota)}</span>`:''}</div>`).join('')||'Sin productos';
+const cobroTxt=o=>o.estado==='pagada'?`<span class="pill ok">Pagado · ${MET[o.pago.metodo]||esc(o.pago.metodo)}</span>`:`<span class="pill warn">Cobrar ${money(total(o))}${o.pagoPreferido?' · '+(MET[o.pagoPreferido]||esc(o.pagoPreferido)):''}</span>`;
 function pdHTML(o){
+  if(pedidoEstado(o)==='aprobar')return `<article class="pd por-aprobar"><header><b>${esc(o.cliente||'Cliente')}</b><span class="row" style="gap:4px"><span class="pill info">Web</span><span class="svc svc-${o.tipo} pill">${o.tipo==='domicilio'?'Domicilio':'Recoge'}</span></span></header>
+    <div class="muted small">Pedido ${o.num} · <span data-since="${o.creada}">${clock(o.creada)}</span>${o.tel?' · Tel. '+esc(o.tel):''}</div>
+    ${o.tipo==='domicilio'?`<div class="pd-dir">${esc(o.direccion)}<span class="muted small">${esc(o.zona)}</span></div>`:''}
+    ${o.notaCliente?`<div class="small" style="color:var(--warn)">Nota: ${esc(o.notaCliente)}</div>`:''}
+    <div class="pd-items">${itemsTxt(o)}</div>
+    <footer><span class="pd-t">${money(total(o))}</span><span class="pill warn">Pago por verificar · ${MET[o.pagoPreferido]||'Transferencia'}</span></footer>
+    <div class="row"><button class="btn sm" data-act="verComprobante" data-id="${o.id}">Ver comprobante</button>${puedeAprobar()?`<button class="btn sm danger" data-act="rechazar" data-id="${o.id}">Rechazar</button><button class="btn sm primary" data-act="aprobar" data-id="${o.id}">Aprobar y enviar a cocina</button>`:'<span class="muted small">Lo aprueba caja o el administrador</span>'}</div></article>`;
   const st=pedidoEstado(o);const pag=o.estado==='pagada';const borr=o.items.some(l=>!l.env&&l.est);
   let acts='';
   if(st==='cocina')acts=(pag?'':`<button class="btn sm" data-act="openOrden" data-id="${o.id}">Editar</button>`)+(borr?`<button class="btn sm primary" data-act="enviarPedido" data-id="${o.id}">Enviar a cocina</button>`:'');
-  if(st==='listo')acts=o.tipo==='domicilio'?`<button class="btn sm primary" data-act="despachar" data-id="${o.id}">Despachar</button>`:`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Entregar al cliente</button>`;
+  if(st==='listo')acts=o.tipo==='domicilio'?`<span class="muted small">Esperando domiciliario</span><button class="btn sm" data-act="despachar" data-id="${o.id}">Despachar</button>`:`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Entregar al cliente</button>`;
   if(st==='camino')acts=`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Marcar entregado</button>`;
   if(!pag)acts+=`<button class="btn sm dark" data-act="cobrar" data-id="${o.id}">Cobrar</button>`;
   return `<article class="pd"><header><b>${esc(o.cliente||'Cliente')}</b><span class="row" style="gap:4px">${o.canal==='Web'?'<span class="pill info">Web</span>':''}<span class="svc svc-${o.tipo} pill">${o.tipo==='domicilio'?'Domicilio':'Para llevar'}</span></span></header>
     <div class="muted small">${esc(o.canal)} · Pedido ${o.num} · <span data-since="${o.creada}">${clock(o.creada)}</span>${borr?' · <b style="color:var(--warn)">Sin enviar</b>':''}</div>
-    ${o.tipo==='domicilio'?`<div class="pd-dir">${esc(o.direccion)}<span class="muted small">${esc(o.zona)}${o.tSalida?' · salió '+hhmm(o.tSalida):''}</span></div>`:''}
+    ${o.tipo==='domicilio'?`<div class="pd-dir">${esc(o.direccion)}<span class="muted small">${esc(o.zona)}${o.tSalida?' · salió '+hhmm(o.tSalida):''}${o.domiciliario?' · '+esc(o.domiciliario):''}</span></div>`:''}
     ${o.tel?`<div class="small">Tel. ${esc(o.tel)}</div>`:''}
     ${o.pagoPreferido&&o.estado!=='pagada'?`<div class="small"><b>Pago:</b> ${MET[o.pagoPreferido]||esc(o.pagoPreferido)}${o.pagaCon?' · paga con '+money(o.pagaCon)+' (cambio '+money(o.pagaCon-total(o))+')':''}</div>`:''}
     ${o.notaCliente?`<div class="small" style="color:var(--warn)">Nota: ${esc(o.notaCliente)}</div>`:''}
-    <div class="pd-items">${o.items.filter(l=>l.est).map(l=>l.cant+'× '+esc(l.nombre)).join(' · ')||'Sin productos'}</div>
+    <div class="pd-items">${itemsTxt(o)}</div>
     <footer><span class="pd-t">${money(total(o))}</span>${pag?`<span class="pill ok">Pagado · ${MET[o.pago.metodo]}</span>`:'<span class="pill">Por cobrar</span>'}</footer>
     <div class="row">${acts}</div></article>`;
 }
@@ -897,7 +956,31 @@ function vPedidos(){
   const done=S.ordenes.filter(o=>o.tipo!=='mesa'&&o.entrega==='entregado'&&o.estado==='pagada'&&o.pago.t>=S.turno).length;
   const col=(k,t)=>{const xs=ps.filter(o=>pedidoEstado(o)===k);return `<div class="kcol"><div class="kcol-h"><h3>${t}</h3><span class="count">${xs.length}</span></div>${xs.map(pdHTML).join('')||'<p class="empty">Nada aquí</p>'}</div>`};
   return `<div class="bar"><button class="btn primary" data-act="nuevoPedido">+ Nuevo pedido</button><span class="muted small">${done} entregados en el turno</span></div>
-  <div class="kanban">${col('cocina','En cocina')}${col('listo','Listos')}${col('camino','En camino')}</div>`;
+  <div class="kanban k4">${col('aprobar','Por aprobar')}${col('cocina','En cocina')}${col('listo','Listos')}${col('camino','En camino')}</div>`;
+}
+
+/* ---------- REPARTO (domiciliario) ---------- */
+function vReparto(){
+  const u=yo();const todos=!u||u.rol!=='domiciliario';
+  const dom=S.ordenes.filter(o=>o.tipo==='domicilio'&&o.estado!=='anulada'&&o.entrega!=='entregado'&&o.aprobacion!=='pendiente');
+  const listos=paraSalir();
+  const camino=dom.filter(o=>o.entrega==='en_camino'&&(todos||o.domiciliario===u.nombre));
+  const cocina=dom.filter(o=>pedidoEstado(o)==='cocina');
+  const hechos=S.ordenes.filter(o=>o.tipo==='domicilio'&&o.entrega==='entregado'&&(+o.tEntrega||0)>=S.turno&&(todos||o.domiciliario===u.nombre)).length;
+  const tel=o=>String(o.tel||'').replace(/\D/g,'');
+  const card=(o,acts)=>`<article class="pd rp"><header><b>${esc(o.cliente||'Cliente')}</b><span class="muted small">Pedido ${o.num}</span></header>
+    <div class="rp-dir">${esc(o.direccion||'Sin dirección')}</div><div class="muted small">${esc(o.zona||'')}${o.domiciliario&&o.entrega==='en_camino'?' · lo lleva '+esc(o.domiciliario):''}${o.tSalida&&o.entrega==='en_camino'?' · salió '+hhmm(o.tSalida):''}</div>
+    ${o.notaCliente?`<div class="small" style="color:var(--warn)">Nota: ${esc(o.notaCliente)}</div>`:''}
+    <div class="pd-items">${itemsTxt(o)}</div>
+    <footer><span class="pd-t">${money(total(o))}</span>${cobroTxt(o)}</footer>
+    ${o.estado!=='pagada'&&o.pagaCon?`<div class="small">Paga con ${money(o.pagaCon)} · lleva ${money(o.pagaCon-total(o))} de cambio</div>`:''}
+    ${acts?`<div class="row">${acts(o)}</div>`:''}</article>`;
+  const links=o=>`${o.direccion?`<a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.direccion)}" target="_blank" rel="noopener">Mapa</a>`:''}${tel(o)?`<a class="btn sm" href="tel:${tel(o)}">Llamar</a><a class="btn sm" href="https://wa.me/57${tel(o).slice(-10)}" target="_blank" rel="noopener">WhatsApp</a>`:''}`;
+  const col=(t,xs,acts,vacio)=>`<div class="kcol"><div class="kcol-h"><h3>${t}</h3><span class="count">${xs.length}</span></div>${xs.map(o=>card(o,acts)).join('')||`<p class="empty">${vacio}</p>`}</div>`;
+  return `<div class="bar"><span class="muted small">${hechos} entregados en el turno${todos?'':' por ti'}</span></div>
+  <div class="kanban">${col('Listos para salir',listos,o=>`<button class="btn primary" data-act="salir" data-id="${o.id}">Salgo con este pedido</button>`,'Nada listo todavía')}
+  ${col(todos?'En camino':'Mis entregas',camino,o=>`${links(o)}<button class="btn primary" data-act="entregarPedido" data-id="${o.id}">Entregado</button>`,'No llevas pedidos')}
+  ${col('Preparándose',cocina,null,'Nada en cocina')}</div>`;
 }
 
 /* ---------- CARTA QR ---------- */
@@ -1067,8 +1150,9 @@ function vConfig(){
     <section class="card"><h3>Pedidos de clientes</h3>
       <label class="field"><span>Dirección de tu carta (cliente.html publicada)</span><input data-cfg="urlCliente" value="${esc(c.urlCliente||'')}" placeholder="https://tu-usuario.github.io/restaurante/cliente.html"></label>
       <label class="bar small" style="gap:8px;font-weight:600"><input type="checkbox" data-cfg="abiertoWeb" ${+c.abiertoWeb!==0?'checked':''}> Recibir pedidos por la carta (QR y domicilios)</label>
-      <label class="bar small" style="gap:8px;font-weight:600"><input type="checkbox" data-cfg="confirmarWeb" ${+c.confirmarWeb===1?'checked':''}> Revisar los domicilios web antes de mandarlos a cocina</label>
-      <p class="small muted">Los pedidos desde el QR de la mesa siempre van directo a cocina. Si marcas la revisión, los domicilios web llegan como "Sin enviar" y caja los manda a cocina.</p>
+      <p class="small muted">Los domicilios y pedidos para recoger llegan con la captura del pago y esperan tu aprobación en <b>Domicilios → Por aprobar</b>. Al aprobar pasan a cocina; cuando cocina los marca listos aparecen en <b>Reparto</b>. Los pedidos desde el QR de la mesa van directo a cocina.</p>
+      <label class="field"><span>Adicionales que el cliente puede agregar a cada plato</span><select data-cfg="catExtras"><option value="">Ninguno</option>${S.cats.map(k=>`<option value="${esc(k.id)}" ${(c.catExtras??'adic')===k.id?'selected':''}>${esc(k.n)}</option>`).join('')}</select></label>
+      <p class="small muted">Los ingredientes que escribas en la descripción de cada producto, separados por comas, le salen al cliente para quitarlos.</p>
       <div class="grid2">${f('nequi','Nequi para recibir pagos')}${f('daviplata','DaviPlata')}</div>${f('breb','Llave Bre-B')}
       <p class="small muted">Si dejas un medio vacío, no se le ofrece al cliente.</p></section>
     <section class="card"><h3>Zonas de domicilio</h3>${c.zonas.map(z=>`<div class="pay-row"><span>${esc(z.n)}</span><span>${money(z.c)}</span></div>`).join('')}</section>
@@ -1149,6 +1233,16 @@ function renderModal(){
     <div class="chips">${['Error al tomar el pedido','Cliente se fue','Cliente cambió de opinión','Plato con problema','Cortesía de la casa'].map(x=>`<button type="button" class="chip" data-act="motivoChip" data-id="${x}">${x}</button>`).join('')}</div>
     ${u&&!['admin','caja'].includes(u.rol)?'<p class="small muted">Después te pedirá el PIN de un administrador o de caja para autorizar.</p>':''}
     <button class="btn dark big">Continuar</button></form>`}
+  if(M.type==='comprobante'){const o=ord(M.oid);if(!o){U.modal=null;return renderModal()}const src=CMP[o.id];
+    h=`${head('Comprobante · pedido '+o.num)}<div class="cmp">${src&&src.startsWith('data:')?`<img class="cmp-img" src="${src}" alt="Captura del pago de ${esc(o.cliente)}">`:`<p class="empty">${src==='x'?'Este pedido no tiene comprobante guardado.':'Cargando comprobante…'}</p>`}</div>
+    <div class="pay-row"><span>${esc(o.cliente)} · ${MET[o.pagoPreferido]||'Transferencia'}</span><b>${money(total(o))}</b></div>
+    <p class="small muted">Revisa que el valor, la fecha y la cuenta de destino coincidan antes de aprobar.</p>
+    ${o.aprobacion==='pendiente'&&puedeAprobar()?`<div class="row"><button class="btn danger" data-act="rechazar" data-id="${o.id}">Rechazar</button><button class="btn primary" data-act="aprobar" data-id="${o.id}">Aprobar y enviar a cocina</button></div>`:''}`}
+  if(M.type==='rechazo'){const o=ord(M.oid);
+    h=`${head('Rechazar pedido '+(o?o.num:''))}<p class="muted">El cliente ve este motivo en su seguimiento. El pedido no pasa a cocina.</p>
+    <form data-form="rechazo" class="panel"><label class="field"><span>Motivo</span><input name="motivo" id="rechazoTxt" required placeholder="Escribe o elige un motivo"></label>
+    <div class="chips">${['No nos llegó el pago','El valor no coincide con el pedido','No se ve bien el comprobante','No llegamos a esa dirección','Se agotó un producto'].map(x=>`<button type="button" class="chip" data-act="rechazoChip" data-id="${x}">${x}</button>`).join('')}</div>
+    <button class="btn dark big">Rechazar pedido</button></form>`}
   if(M.type==='auth'){h=`${head('Autoriza la anulación')}<p class="muted">Un administrador o la caja escribe su PIN para anular ${esc(label(ord(M.oid)))}.<br>Motivo: ${esc(M.motivo)}</p>${padHTML(M.pin,'authKey',M.err)}`}
   if(M.type==='pinUser'){const u=S.usuarios.find(x=>x.id===M.uid);
     h=`${head('Nuevo PIN para '+esc(u.nombre))}<form data-form="pinUser" class="panel"><label class="field"><span>PIN de 4 números</span><input name="pin" inputmode="numeric" maxlength="4" pattern="\\d{4}" required autocomplete="off"></label><button class="btn primary big">Guardar PIN</button></form>`}
@@ -1156,7 +1250,7 @@ function renderModal(){
     <div class="qr-sheet">${S.mesas.map(m=>`<div class="qr-cell"><b>Mesa ${esc(m.nombre)}</b><div data-qr="${m.id}"></div><span>Escanea para ver la carta y pedir</span></div>`).join('')}</div>
     <button class="btn primary noprint" data-act="imprimirQR">Imprimir</button>`}
   if(M.type==='confirm'){h=`${head(esc(M.title))}<p>${esc(M.text)}</p><div class="row"><button class="btn" data-act="close">Cancelar</button><button class="btn ${M.danger?'dark':'primary'}" data-act="confirmOk">${esc(M.ok)}</button></div>`}
-  el.innerHTML=`<div class="mbox ${M.type==='cobro'||M.type==='qrs'?'wide':''}" role="dialog" aria-modal="true">${h}</div>`;
+  el.innerHTML=`<div class="mbox ${M.type==='cobro'||M.type==='qrs'||M.type==='comprobante'?'wide':''}" role="dialog" aria-modal="true">${h}</div>`;
   if(M.type==='qrs')drawQR();
 }
 function cambioHTML(rec,pagar){if(!rec)return '<span class="muted small">Sin valor, se registra como pago exacto.</span>';if(rec<pagar)return `<span class="pill bad">Faltan ${money(pagar-rec)}</span>`;return `<span class="muted">Cambio para el cliente</span> <span class="cambio">${money(rec-pagar)}</span>`}
@@ -1185,6 +1279,7 @@ const ACT={
     if(!o.items.some(l=>l.env)){S.ordenes=S.ordenes.filter(x=>x!==o);save();ACT.back();toast('Pedido descartado: no se había enviado nada');return}
     U.modal={type:'anular',oid:o.id};renderModal()},
   motivoChip:id=>{const t=document.getElementById('motivoTxt');if(t)t.value=id},
+  rechazoChip:id=>{const t=document.getElementById('rechazoTxt');if(t)t.value=id},
   authKey:k=>pinDigito(k,U.modal,h=>{const a=S.usuarios.find(u=>u.activo&&['admin','caja'].includes(u.rol)&&u.pinHash===h);
     if(!a){U.modal.pin='';U.modal.err=true;renderModal();toast('Ese PIN no es de administrador ni de caja','bad');return}
     const M=U.modal;anularOrden(M.oid,M.motivo,a.nombre)}).then(()=>{if(U.modal&&U.modal.type==='auth')renderModal()}),
@@ -1219,8 +1314,16 @@ const ACT={
     render();toast('Cobrado '+money(pagar)+' · '+MET[M.metodo]+(M.metodo==='efectivo'&&rec>pagar?' · cambio '+money(rec-pagar):''))},
   openOrden:id=>{U.active=id;U.back=U.view==='pedido'?U.back:U.view;U.view='pedido';U.cat='all';U.q='';render()},
   nuevoPedido:()=>{U.modal={type:'nuevoPedido'};renderModal()},
-  despachar:id=>{const o=ord(id);o.entrega='en_camino';o.tSalida=now();cerrarComandas(o);save();render();toast('Pedido de '+(o.cliente||'cliente')+' en camino')},
-  entregarPedido:id=>{const o=ord(id);o.entrega='entregado';cerrarComandas(o);save();
+  aprobar:id=>{const o=ord(id);const u=yo();if(!o)return;if(!puedeAprobar()){toast('Solo caja o el administrador aprueban pagos','bad');return}
+    o.aprobacion='aprobado';o.aprobadoPor=u.nombre;o.tAprobado=now();
+    const n=enviarCocina(o);S.comandas.filter(c=>n.includes(c.num)).forEach(c=>c.origen='web');
+    o.estado='pagada';o.cobradoPor=u.nombre;o.pago={metodo:o.pagoPreferido||'nequi',total:total(o),propina:0,t:now(),recibido:total(o),ref:'Comprobante web'};
+    save();U.modal=null;render();toast('Pago aprobado · pedido '+o.num+' en cocina')},
+  rechazar:id=>{if(!puedeAprobar()){toast('Solo caja o el administrador rechazan pagos','bad');return}U.modal={type:'rechazo',oid:id};renderModal()},
+  verComprobante:id=>{const o=ord(id);if(!o)return;U.modal={type:'comprobante',oid:id};renderModal();cargarComprobante(o)},
+  salir:id=>{const o=ord(id);const u=yo();if(!o)return;o.entrega='en_camino';o.tSalida=now();o.domiciliario=u?u.nombre:'';cerrarComandas(o);save();render();toast('Vas con el pedido '+o.num+' · '+(o.cliente||''))},
+  despachar:id=>{const o=ord(id);o.entrega='en_camino';o.tSalida=now();o.domiciliario=o.domiciliario||yo()?.nombre||'';cerrarComandas(o);save();render();toast('Pedido de '+(o.cliente||'cliente')+' en camino')},
+  entregarPedido:id=>{const o=ord(id);o.entrega='entregado';o.tEntrega=now();if(!o.domiciliario&&o.tipo==='domicilio')o.domiciliario=yo()?.nombre||'';cerrarComandas(o);save();
     if(o.estado!=='pagada'){render();ACT.cobrar(id);toast('Entregado. Registra el pago.')}else{render();toast('Pedido entregado')}},
   qrCat:id=>{U.qrCat=id;render()},
   qrAdd:id=>{const l=U.qrCart.find(x=>x.pid===id);if(l)l.cant++;else U.qrCart.push({pid:id,cant:1});render()},
@@ -1265,6 +1368,9 @@ function anularOrden(oid,motivo,autorizo){
 }
 function selectText(){const el=document.getElementById('msgTxt');const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r)}
 const FORMS={
+  rechazo:fd=>{const o=ord(U.modal.oid);const u=yo();const motivo=String(fd.get('motivo')||'').trim();if(!o)return;if(!motivo){toast('Escribe el motivo para el cliente','bad');return}
+    o.aprobacion='rechazado';o.motivoRechazo=motivo;o.estado='anulada';o.anuladoPor=u?.nombre||'';o.autorizadoPor=u?.nombre||'';o.motivoAnulacion='Pago rechazado: '+motivo;o.anuladoEn=now();
+    save();U.modal=null;render();toast('Pedido '+o.num+' rechazado · el cliente ve el motivo')},
   nota:fd=>{const l=ord(U.active).items.find(x=>x.id===U.modal.lid);l.nota=String(fd.get('nota')).trim();U.modal=null;save();render()},
   pedido:fd=>{const tipo=fd.get('tipo');const z=S.config.zonas[+fd.get('zona')||0];
     if(tipo==='domicilio'&&!String(fd.get('direccion')).trim()){toast('Escribe la dirección de entrega','bad');return}
@@ -1336,6 +1442,7 @@ setInterval(()=>{const a=document.activeElement;if(!U.modal&&['mesas','cocina','
 render();tick();
 {const n0=NET;NET='';setNet(n0)}
 setInterval(poll,5000);
+setInterval(recibirBuzon,3000);recibirBuzon();
 if(API.url)poll();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){pantallaEncendida();if(API.url)poll()}});
 if(VISTA_URL&&yo()&&ROLES[yo().rol].includes(VISTA_URL)){U.view=VISTA_URL;render()}
