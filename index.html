@@ -78,6 +78,13 @@ h3{font-size:1rem;font-weight:700}
 .top h1{font-size:1.5rem;font-weight:800}
 .top .sub{color:var(--muted);font-size:.85rem}
 .top-r{margin-left:auto;display:flex;align-items:center;gap:12px}
+.snd{border:1px solid var(--line);background:var(--surface);border-radius:999px;width:38px;height:38px;font-size:1.05rem;cursor:pointer;display:grid;place-items:center;flex:none}
+.snd.on{border-color:var(--accent);background:var(--accent-soft)}
+.snd.warn{border-color:var(--warn);background:var(--warn-soft);animation:sndPulse 1.6s ease-in-out infinite}
+.snd.off{opacity:.65}
+@keyframes sndPulse{50%{box-shadow:0 0 0 6px var(--warn-soft)}}
+@media (max-width:560px){.top-r{gap:8px}.top-r .clock{display:none}.top-r #net{font-size:.7rem}}
+.snd-aviso{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:60;border:0;border-radius:999px;padding:12px 18px;background:var(--warn);color:#fff;font:inherit;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer;max-width:calc(100% - 32px)}
 .clock{font-family:var(--f-mono);font-weight:500;color:var(--muted)}
 .role{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)}
 .role select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
@@ -436,9 +443,11 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
     </div>
   </aside>
   <main class="main">
+    <button class="snd-aviso" id="sndAviso" data-act="sonido" hidden>🔔 Toca aquí para activar el sonido de las alertas</button>
     <header class="top">
       <div><h1 id="title">Mesas</h1><div class="sub" id="subtitle"></div></div>
       <div class="top-r">
+        <button class="snd warn" id="snd" data-act="sonido" title="Alertas sonoras">🔔</button>
         <span class="pill" id="net">Solo este equipo</span>
         <span class="clock" id="clock"></span>
         <button class="me" id="me" data-act="bloquear" title="Bloquear y cambiar de usuario"></button>
@@ -655,12 +664,43 @@ function aplicar(st){
       });
     }
     if(U.role==='domiciliario'||U.view==='reparto')S.ordenes.filter(o=>o.tipo==='domicilio'&&pedidoEstado(o)==='listo'&&o.entrega!=='en_camino'&&prevO[o.id]&&prevO[o.id].st!=='listo').forEach(o=>avisos.push('Listo para salir: pedido '+o.num+' · '+(o.direccion||'')));
-    if(avisos.length){beep();[...new Set(avisos)].slice(0,3).forEach(a=>toast(a))}
+    if(avisos.length){beep(avisos.some(a=>/^Pedido web|Nueva comanda|comandas nuevas|QR|Listo para salir/.test(a))?'pedido':'');[...new Set(avisos)].slice(0,3).forEach(a=>toast(a))}
   }
   const a=document.activeElement;
   if(!U.modal&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();else renderNav();
 }
-function beep(){try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=880;g.gain.setValueAtTime(.15,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.5);o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.5)}catch(e){}}
+/* ---------- alertas sonoras ----------
+   Android/Chrome no deja sonar nada hasta que la persona toca la pantalla: el primer toque "despierta" el audio. */
+const SONIDO_K=K+'_sonido';
+let SONIDO=(()=>{try{return localStorage.getItem(SONIDO_K)!=='0'}catch(e){return true}})();
+function audioListo(){return !!audioCtx&&audioCtx.state==='running'}
+function despertarAudio(){
+  try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state!=='running')audioCtx.resume().then(pintarSonido,()=>{});
+    const b=audioCtx.createBuffer(1,1,22050),src=audioCtx.createBufferSource();src.buffer=b;src.connect(audioCtx.destination);src.start(0);
+  }catch(e){}
+  setTimeout(pintarSonido,150);
+}
+['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,despertarAudio,{passive:true}));
+function tono(f,t0,dur,vol){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='square';o.frequency.value=f;
+  g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(vol,t0+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g).connect(audioCtx.destination);o.start(t0);o.stop(t0+dur+0.05)}
+// tipo: 'pedido' (tres tonos ascendentes, más fuerte) o normal (dos tonos)
+function beep(tipo){
+  try{navigator.vibrate&&navigator.vibrate(tipo==='pedido'?[300,120,300,120,300]:[200,100,200])}catch(e){}
+  if(!SONIDO)return;
+  try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state!=='running')audioCtx.resume();
+    const t=audioCtx.currentTime+0.02;
+    if(tipo==='pedido'){tono(880,t,0.22,0.5);tono(1175,t+0.27,0.22,0.5);tono(1568,t+0.54,0.4,0.55)}
+    else{tono(988,t,0.2,0.4);tono(1319,t+0.25,0.3,0.4)}
+  }catch(e){}
+}
+function pintarSonido(){const b=document.getElementById('snd');if(!b)return;const ok=SONIDO&&audioListo();
+  b.className='snd '+(!SONIDO?'off':ok?'on':'warn');b.textContent=!SONIDO?'🔕':'🔔';
+  b.title=!SONIDO?'Alertas sonoras apagadas · toca para encender':ok?'Alertas sonoras activas · toca para probar o apagar':'Toca para activar el sonido de las alertas';
+  const v=document.getElementById('sndAviso');if(v)v.hidden=!(SONIDO&&!ok&&yo())}
+// Recordatorio: mientras haya pedidos web sin aprobar, vuelve a sonar cada 30 s para caja y administrador
+setInterval(()=>{const u=yo();if(u&&['admin','caja'].includes(u.rol)&&porAprobar().length&&!document.hidden)beep('pedido')},30000);
 function setNet(s){
   if(NET===s)return;NET=s;const el=document.getElementById('net');if(!el)return;
   const [t,c]={demo:['Solo este equipo',''],ok:['Conectado','ok'],off:['Sin conexión · guardando aquí','bad']}[s];
@@ -771,7 +811,7 @@ function recibirBuzon(){
   if(!Array.isArray(bz)||!bz.length)return;try{localStorage.removeItem(K+'_buzon')}catch(e){}
   let n=0;bz.forEach(o=>{if(!o||!o.id||S.ordenes.some(x=>x.id===o.id))return;o.num=S.num++;S.ordenes.push(o);n++});
   if(!n)return;save();
-  if(yo()&&U.role!=='cocina'){beep();toast(n===1?'Nuevo pedido web por aprobar':n+' pedidos web por aprobar')}
+  if(yo()&&U.role!=='cocina'){beep('pedido');toast(n===1?'Nuevo pedido web por aprobar':n+' pedidos web por aprobar')}
   const a=document.activeElement;if(!U.modal&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();else renderNav();
 }
 window.addEventListener('storage',e=>{if(e.key===K+'_buzon')recibirBuzon();if(e.key===K&&!API.url&&e.newValue){try{const n=JSON.parse(e.newValue);if(n&&n.v===1){S=n;render()}}catch(x){}}});
@@ -805,7 +845,7 @@ function renderNav(){
     return `<button class="${cur===v?'on':''}" data-act="nav" data-id="${v}" ${cur===v?'aria-current="page"':''}>${ico(v)}<span>${n}</span>${b}</button>`}).join('');
 }
 function render(){
-  const u=yo();renderLock();
+  const u=yo();renderLock();pintarSonido();
   const me=document.getElementById('me');
   if(!u){renderModalClear();me.innerHTML='';return}
   U.role=u.rol;me.innerHTML=`${avatar(u)}<span><b>${esc(u.nombre)}</b><small>${ROL_N[u.rol]} · Bloquear</small></span>`;
@@ -1269,6 +1309,9 @@ function renderModal(){
     <div class="chips">${['Error al tomar el pedido','Cliente se fue','Cliente cambió de opinión','Plato con problema','Cortesía de la casa'].map(x=>`<button type="button" class="chip" data-act="motivoChip" data-id="${x}">${x}</button>`).join('')}</div>
     ${u&&!['admin','caja'].includes(u.rol)?'<p class="small muted">Después te pedirá el PIN de un administrador o de caja para autorizar.</p>':''}
     <button class="btn dark big">Continuar</button></form>`}
+  if(M.type==='sonido'){h=`${head('Alertas sonoras')}<p class="muted">Suenan con pedidos web nuevos, comandas nuevas en cocina, mesas que llaman o piden la cuenta y pedidos listos para el domiciliario. Los pedidos web por aprobar repiten la alerta cada 30 segundos hasta que alguien los apruebe.</p>
+    <p class="small muted">Sube el volumen multimedia del equipo y deja la app abierta en pantalla: con el celular bloqueado o la app minimizada, Android no deja sonar las alertas.</p>
+    <div class="row"><button class="btn" data-act="sonidoApagar">Apagar en este equipo</button><button class="btn primary" data-act="sonidoProbar">Probar sonido</button></div>`}
   if(M.type==='comprobante'){const o=ord(M.oid);if(!o){U.modal=null;return renderModal()}const src=CMP[o.id];
     h=`${head('Comprobante · pedido '+o.num)}<div class="cmp">${src&&src.startsWith('data:')?`<img class="cmp-img" src="${src}" alt="Captura del pago de ${esc(o.cliente)}">`:`<p class="empty">${src==='x'?'Este pedido no tiene comprobante guardado.':'Cargando comprobante…'}</p>`}</div>
     <div class="pay-row"><span>${esc(o.cliente)} · ${MET[o.pagoPreferido]||'Transferencia'}</span><b>${money(total(o))}</b></div>
@@ -1323,6 +1366,12 @@ const ACT={
     S.config.local={lat:+(+m[1]).toFixed(6),lng:+(+m[2]).toFixed(6)};save();render();toast('Ubicación del local guardada')},
   tramoAdd:()=>{const t=S.config.tramos;const u=t[t.length-1]||{km:0,c:0};t.push({km:u.km+2,c:u.c+2000});save();render()},
   tramoDel:id=>{if(S.config.tramos.length<=1){toast('Debe quedar al menos un tramo','bad');return}S.config.tramos.splice(+id,1);save();render()},
+  sonido:()=>{despertarAudio();
+    if(!SONIDO){SONIDO=true;try{localStorage.setItem(SONIDO_K,'1')}catch(e){}setTimeout(()=>{beep('pedido');pintarSonido()},200);toast('Alertas sonoras encendidas');return}
+    if(!audioListo()){setTimeout(()=>{beep('pedido');pintarSonido()},200);toast('Sonido activado');return}
+    U.modal={type:'sonido'};renderModal()},
+  sonidoProbar:()=>{beep('pedido')},
+  sonidoApagar:()=>{SONIDO=false;try{localStorage.setItem(SONIDO_K,'0')}catch(e){}U.modal=null;renderModal();pintarSonido();toast('Alertas sonoras apagadas en este equipo')},
   opcAdd:()=>{S.config.opciones.push({n:'Nuevo grupo',items:[],cats:[]});save();render()},
   opcDel:id=>{S.config.opciones.splice(+id,1);save();render()},
   rechazoChip:id=>{const t=document.getElementById('rechazoTxt');if(t)t.value=id},
