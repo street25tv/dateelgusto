@@ -82,6 +82,8 @@ h3{font-size:1rem;font-weight:700}
 .snd.on{border-color:var(--accent);background:var(--accent-soft)}
 .snd.warn{border-color:var(--warn);background:var(--warn-soft);animation:sndPulse 1.6s ease-in-out infinite}
 .snd.off{opacity:.65}
+.pasos-imp{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.imp-chk{display:flex;gap:10px;align-items:center;font-size:.9rem}.imp-chk input{width:18px;height:18px;flex:none}
 @keyframes sndPulse{50%{box-shadow:0 0 0 6px var(--warn-soft)}}
 @media (max-width:560px){.top-r{gap:8px}.top-r .clock{display:none}.top-r #net{font-size:.7rem}}
 .snd-aviso{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:60;border:0;border-radius:999px;padding:12px 18px;background:var(--warn);color:#fff;font:inherit;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer;max-width:calc(100% - 32px)}
@@ -458,6 +460,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
       <div><h1 id="title">Mesas</h1><div class="sub" id="subtitle"></div></div>
       <div class="top-r">
         <button class="snd warn" id="snd" data-act="sonido" title="Alertas sonoras">🔔</button>
+        <button class="snd off" id="imp" data-act="impresora" title="Impresora" hidden>🖨️</button>
         <span class="pill" id="net">Solo este equipo</span>
         <span class="clock" id="clock"></span>
         <button class="me" id="me" data-act="bloquear" title="Bloquear y cambiar de usuario"></button>
@@ -618,7 +621,7 @@ function cambios(){
 }
 function save(){
   try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}
-  publicarEstados();
+  publicarEstados();revisarImpresion();
   if(API.url&&SNAP){clearTimeout(flushT);flushT=setTimeout(flush,300)}
 }
 async function flush(){
@@ -677,8 +680,144 @@ function aplicar(st){
     if(U.role==='domiciliario'||U.view==='reparto')S.ordenes.filter(o=>o.tipo==='domicilio'&&pedidoEstado(o)==='listo'&&o.entrega!=='en_camino'&&prevO[o.id]&&prevO[o.id].st!=='listo').forEach(o=>avisos.push('Listo para salir: pedido '+o.num+' · '+(o.direccion||'')));
     if(avisos.length){beep(avisos.some(a=>/^Pedido web|Nueva comanda|comandas nuevas|QR|Listo para salir/.test(a))?'pedido':'');[...new Set(avisos)].slice(0,3).forEach(a=>toast(a))}
   }
+  revisarImpresion();
   const a=document.activeElement;
   if(!U.modal&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();else renderNav();
+}
+/* ---------- impresora térmica (ESC/POS) ----------
+   Bluetooth directo desde Chrome (Web Serial sobre Bluetooth: Android y computador) o, de respaldo, la app RawBT.
+   Se configura en cada equipo: vive en este navegador, no en la hoja. El equipo que tiene la impresora
+   imprime solo todas las comandas nuevas, vengan de donde vengan (meseros, carta QR, pedidos web aprobados). */
+const IMP_K=K+'_imp';
+const IMP_DEF={modo:'',auto:'',copias:1,ancho:32,tildes:1,recibo:'preguntar',desde:0,hechas:[]};
+let IMP=(()=>{try{return Object.assign({},IMP_DEF,JSON.parse(localStorage.getItem(IMP_K)||'{}'))}catch(e){return {...IMP_DEF}}})();
+let impPort=null,impW=null,impCola=Promise.resolve(),impError='';
+const SPP='00001101-0000-1000-8000-00805f9b34fb';
+const serialOK=()=>'serial' in navigator;
+function impGuardar(){try{localStorage.setItem(IMP_K,JSON.stringify(IMP))}catch(e){}pintarImp()}
+function pintarImp(){try{const b=document.getElementById('imp');if(!b)return;const u=yo();
+  b.hidden=!(u&&(['admin','caja','cocina'].includes(u.rol)||IMP.modo));
+  b.className='snd '+(impError?'warn':IMP.modo?'on':'off');
+  b.title=impError?'La impresora tiene un problema · toca para revisar':IMP.modo?'Impresora lista'+(IMP.auto?' · comandas automáticas':''):'Configurar la impresora térmica'}catch(e){}}
+async function impPedirPuerto(){
+  try{return await navigator.serial.requestPort({allowedBluetoothServiceClassIds:[SPP]})}
+  catch(e){if(e.name==='TypeError')return await navigator.serial.requestPort();throw e}}
+async function impAbrir(pedir){
+  if(impW)return true;
+  if(!serialOK())throw new Error('este Chrome no tiene Bluetooth serial. Actualiza Chrome o usa la app RawBT');
+  if(!impPort)impPort=(await navigator.serial.getPorts())[0]||null;
+  if(!impPort&&pedir)impPort=await impPedirPuerto();
+  if(!impPort)return false;
+  if(!impPort.writable)await impPort.open({baudRate:9600});
+  impW=impPort.writable.getWriter();return true;
+}
+async function impCerrar(){try{impW&&impW.releaseLock()}catch(e){}impW=null;try{impPort&&await impPort.close()}catch(e){}}
+async function impEnviarSerial(bytes,pedir){
+  for(let n=0;n<2;n++){
+    try{
+      if(!await impAbrir(pedir))throw new Error('toca "Conectar impresora" en este equipo');
+      for(let i=0;i<bytes.length;i+=256){await impW.write(bytes.slice(i,i+256));await new Promise(r=>setTimeout(r,25))}
+      return;
+    }catch(e){await impCerrar();if(n||e.name==='NotFoundError'||/Conectar|Chrome/.test(e.message))throw e}
+  }
+}
+function b64(u8){let t='';for(let i=0;i<u8.length;i+=0x8000)t+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(t)}
+// Devuelve una promesa con true si salió. auto=true: la falla deja la impresora "con problema" y pausa las automáticas.
+function imprimir(bytes,que,pedir,auto){
+  if(!IMP.modo){toast('Primero configura la impresora en este equipo','bad');return Promise.resolve(false)}
+  if(IMP.modo==='rawbt'){location.href='intent:base64,'+b64(bytes)+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';return Promise.resolve(true)}
+  const p=impCola.then(()=>impEnviarSerial(bytes,pedir)).then(()=>{if(impError){impError='';pintarImp()}return true},e=>{
+    const m=e.name==='NotFoundError'?'no elegiste la impresora':(e.message||String(e));
+    if(auto){impError='No salió '+que+': '+m+'. Revisa que la impresora esté encendida y con papel.';pintarImp()}
+    toast('No se pudo imprimir '+que+': '+m,'bad');return false});
+  impCola=p;return p;
+}
+function unir(arr){const n=arr.reduce((a,x)=>a+x.length,0),out=new Uint8Array(n);let i=0;arr.forEach(x=>{out.set(x,i);i+=x.length});return out}
+const CP437={'á':160,'é':130,'í':161,'ó':162,'ú':163,'ñ':164,'Ñ':165,'ü':129,'Ü':154,'É':144,'¿':168,'¡':173,'°':248,'·':250};
+function partir(t,w){const out=[];String(t??'').normalize('NFC').split('\n').forEach(par=>{let l='';
+  par.split(/\s+/).filter(Boolean).forEach(p=>{while(p.length>w){if(l){out.push(l);l=''}out.push(p.slice(0,w));p=p.slice(w)}
+    if(!l)l=p;else if(l.length+1+p.length<=w)l+=' '+p;else{out.push(l);l=p}});out.push(l)});return out}
+// Arma un tiquete ESC/POS. 58 mm = 32 letras por línea; 80 mm = 48.
+function tiquete(){
+  const W=+IMP.ancho||32,b=[27,64,28,46,27,116,0];let ancho=W;
+  const o={
+    raw(...x){b.push(...x);return o},
+    txt(t){for(const ch of String(t??'').normalize('NFC')){const c=ch.charCodeAt(0);
+      if(c>=32&&c<127)b.push(c);else if(ch==='\n')b.push(10);else if(/\s/.test(ch))b.push(32);
+      else if(IMP.tildes&&CP437[ch])b.push(CP437[ch]);
+      else{const f=ch.normalize('NFD').replace(/[̀-ͯ]/g,'');const c2=f.charCodeAt(0);
+        b.push(f.length===1&&c2>=32&&c2<127?c2:/[–—]/.test(ch)?45:/[“”«»]/.test(ch)?34:/[‘’]/.test(ch)?39:ch==='×'?120:/[•·]/.test(ch)?45:63)}}return o},
+    ln(t=''){return o.txt(t).raw(10)},
+    al(n){return o.raw(27,97,n)},                 // 0 izquierda · 1 centro
+    neg(on){return o.raw(27,69,on?1:0)},
+    tam(n){ancho=n&0x10?Math.floor(W/2):W;return o.raw(29,33,n)}, // 0 normal · 1 doble alto · 0x11 doble alto y ancho
+    hr(){return o.ln('-'.repeat(W))},
+    wrap(t,pre=''){partir(t,ancho-pre.length).forEach((l,i)=>o.ln((i?' '.repeat(pre.length):pre)+l));return o},
+    par(l,r){r=String(r).normalize('NFC');const ls=partir(l,Math.max(8,ancho-r.length-1));ls.forEach((x,i)=>o.ln(i<ls.length-1?x:x.padEnd(ancho-r.length)+r));return o},
+    fin(n=4){return o.raw(27,100,n)},
+    bytes(){return Uint8Array.from(b)}};
+  return o}
+function comandaBytes(c,reimp){
+  const o=ord(c.ordenId),tipo=o?.tipo||'mesa',t=tiquete();
+  t.al(1).tam(0x11).neg(1).ln((c.est==='barra'?'BARRA':'COCINA')+' #'+c.num).neg(0).tam(0);
+  if(reimp)t.ln('(reimpresión)');
+  if(o)t.tam(1).neg(1).wrap(tipo==='mesa'?label(o):label(o)+' · Pedido '+o.num).neg(0).tam(0);
+  t.wrap([c.origen==='qr'?'Carta QR':o&&o.canal&&o.canal!=='Salón'?o.canal:'',hhmm(c.t)].filter(Boolean).join(' · '));
+  if(o&&o.mesero&&!['Web','QR'].includes(o.mesero))t.wrap('Mesero: '+o.mesero);
+  if(o&&o.cliente&&tipo!=='mesa')t.wrap('Cliente: '+o.cliente);
+  t.al(0).hr();
+  c.items.forEach(i=>{t.tam(1).neg(1).wrap(i.nombre,i.cant+' x ').neg(0).tam(0);if(i.nota)t.wrap(i.nota,'   > ')});
+  t.hr();if(o&&tipo==='mesa')t.al(1).ln('Pedido '+o.num);
+  return t.fin(4).bytes();
+}
+function cuentaBytes(o,tipo){ // 'precuenta' o 'recibo'
+  const c=S.config,t=tiquete(),tt=total(o),{base,imp}=impo(tt),pg=tipo==='recibo'?o.pago:null;
+  t.al(1).tam(0x11).neg(1).wrap(c.nombre||'').neg(0).tam(0);
+  if(c.nit)t.ln('NIT '+c.nit);if(c.direccion)t.wrap(c.direccion);if(c.tel)t.ln('Tel. '+c.tel);
+  t.ln(tipo==='recibo'?'RECIBO DE PAGO':'PRECUENTA').al(0).hr();
+  const f=new Date(pg?pg.t:now());
+  t.par(label(o),'Pedido '+o.num).par(f.toLocaleDateString('es-CO'),hhmm(+f));
+  if(o.tipo==='mesa'&&o.mesero)t.wrap('Mesero: '+o.mesero);
+  if(o.cliente)t.wrap('Cliente: '+o.cliente);
+  if(o.tipo==='domicilio'&&o.direccion)t.wrap(o.direccion,'Dir: ');
+  if(o.tel)t.ln('Tel: '+o.tel);
+  t.hr();o.items.forEach(l=>t.par(l.cant+' '+l.nombre,money(l.precio*l.cant)));t.hr();
+  if(+c.impoconsumo)t.par('Base',money(base)).par('Impoconsumo '+c.impoconsumo+'%',money(imp));
+  if(pg){const prop=+pg.propina||0,pagado=tt+prop;
+    if(prop)t.par('Consumo',money(tt)).par('Propina',money(prop));
+    t.tam(1).neg(1).par('TOTAL',money(pagado)).neg(0).tam(0).par('Pago',MET[pg.metodo]||pg.metodo);
+    if(pg.metodo==='efectivo'&&pg.recibido>pagado)t.par('Recibido',money(pg.recibido)).par('Cambio',money(pg.recibido-pagado));
+    if(pg.ref)t.par('Referencia',pg.ref);
+    t.hr().al(1).ln('¡Gracias por tu compra!');
+  }else{
+    t.tam(1).neg(1).par('TOTAL',money(tt)).neg(0).tam(0);
+    if(+c.propina)t.par('Propina sugerida '+c.propina+'%',money(Math.round(tt*c.propina/100/100)*100)).al(1).wrap('La propina es voluntaria. Puede aceptarla, modificarla o rechazarla.');
+    t.al(1).hr();
+  }
+  return t.al(1).ln('Documento no válido como factura').fin(4).bytes();
+}
+function pruebaBytes(){const t=tiquete(),W=+IMP.ancho||32;
+  t.al(1).tam(0x11).neg(1).ln('PRUEBA').neg(0).tam(0).wrap(S.config.nombre||'').ln(new Date().toLocaleString('es-CO')).al(0).hr()
+   .ln('Papel '+(W>32?'80':'58')+' mm: '+W+' letras por línea').ln('1234567890'.repeat(5).slice(0,W))
+   .ln('Tildes: Ñandú, áéíóú, ¿sí? ¡listo!').par('2 Hamburguesa doble',money(38000)).hr()
+   .al(1).ln('Si esta hoja se ve bien,').ln('la impresora quedó lista.');
+  return t.fin(4).bytes()}
+const copias=b=>unir(Array(Math.max(1,+IMP.copias||1)).fill(b));
+// Comandas automáticas: imprime en un solo trabajo las comandas nuevas que este equipo no ha impreso
+let impRevT=null,impVuelo=false;
+function revisarImpresion(){clearTimeout(impRevT);impRevT=setTimeout(impAuto,400)}
+function impAuto(){
+  if(!IMP.modo||!IMP.auto||impError||impVuelo)return;
+  const cs=S.comandas.filter(c=>c.t>=IMP.desde&&!IMP.hechas.includes(c.id)&&c.estado!=='entregado'&&(IMP.auto==='todas'||c.est===IMP.auto)).sort((a,b)=>a.num-b.num);
+  if(!cs.length)return;
+  impVuelo=true;
+  imprimir(unir(cs.map(c=>copias(comandaBytes(c)))),cs.length===1?'la comanda #'+cs[0].num:cs.length+' comandas',false,true).then(ok=>{
+    impVuelo=false;if(ok){IMP.hechas=[...IMP.hechas,...cs.map(c=>c.id)].slice(-400);impGuardar();revisarImpresion()}});
+}
+function impTrasCobro(o){
+  if(!IMP.modo||IMP.recibo==='nunca')return;
+  if(IMP.recibo==='siempre'){imprimir(cuentaBytes(o,'recibo'),'el recibo',true);return}
+  U.modal={type:'recibo',oid:o.id};renderModal();
 }
 /* ---------- alertas sonoras ----------
    Android/Chrome no deja sonar nada hasta que la persona toca la pantalla: el primer toque "despierta" el audio. */
@@ -876,7 +1015,7 @@ function renderNav(){
     return `<button class="${cur===v?'on':''}" data-act="nav" data-id="${v}" ${cur===v?'aria-current="page"':''}>${ico(v)}<span>${n}</span>${b}</button>`}).join('');
 }
 function render(){
-  const u=yo();renderLock();pintarSonido();
+  const u=yo();renderLock();pintarSonido();pintarImp();
   const me=document.getElementById('me');
   if(!u){renderModalClear();me.innerHTML='';return}
   U.role=u.rol;me.innerHTML=`${avatar(u)}<span><b>${esc(u.nombre)}</b><small>${ROL_N[u.rol]} · Bloquear</small></span>`;
@@ -982,7 +1121,7 @@ function tkHTML(c){
   const o=ord(c.ordenId);const tipo=o?.tipo||'mesa';const m=mins(c.t);
   const svc={mesa:'En mesa',domicilio:'Domicilio',llevar:'Para llevar'}[tipo]+(c.origen==='qr'||o?.mesero==='QR'?' · QR':c.origen==='web'?' · Web':'');
   return `<article class="tk"><header><span class="tk-num">#${c.num}</span><span class="tk-for">${esc(o?label(o):'')}</span><span class="tk-time ${m>=15?'late':m>=10?'slow':''}" data-since="${c.t}" data-kds="1">${clock(c.t)}</span></header>
-    <div class="tk-meta"><span class="svc svc-${tipo}">${svc}</span><span>${c.est==='barra'?'Barra':'Cocina'}</span>${o?`<span>${esc(o.mesero)}</span>`:''}</div>
+    <div class="tk-meta"><span class="svc svc-${tipo}">${svc}</span><span>${c.est==='barra'?'Barra':'Cocina'}</span>${o?`<span>${esc(o.mesero)}</span>`:''}${IMP.modo?`<button class="lnk" data-act="impComanda" data-id="${c.id}">🖨️ Reimprimir</button>`:''}</div>
     <ul>${c.items.map(i=>`<li><b>${i.cant}×</b><span>${esc(i.nombre)}${i.nota?`<em>${esc(i.nota)}</em>`:''}</span></li>`).join('')}</ul>
     <button class="btn ${c.estado==='nuevo'?'primary':c.estado==='prep'?'ok':''} block" data-act="bump" data-id="${c.id}">${{nuevo:'Empezar',prep:'Marcar lista',listo:'Entregada'}[c.estado]}</button></article>`;
 }
@@ -1033,6 +1172,7 @@ function pdHTML(o){
   if(st==='listo')acts=o.tipo==='domicilio'?`<span class="muted small">Esperando domiciliario</span><button class="btn sm" data-act="despachar" data-id="${o.id}">Despachar</button>`:`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Entregar al cliente</button>`;
   if(st==='camino')acts=`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Marcar entregado</button>`;
   if(!pag)acts+=`<button class="btn sm dark" data-act="cobrar" data-id="${o.id}">Cobrar</button>`;
+  else if(IMP.modo)acts+=`<button class="btn sm" data-act="impRecibo" data-id="${o.id}">Recibo</button>`;
   return `<article class="pd"><header><b>${esc(o.cliente||'Cliente')}</b><span class="row" style="gap:4px">${o.canal==='Web'?'<span class="pill info">Web</span>':''}<span class="svc svc-${o.tipo} pill">${o.tipo==='domicilio'?'Domicilio':'Para llevar'}</span></span></header>
     <div class="muted small">${esc(o.canal)} · Pedido ${o.num} · <span data-since="${o.creada}">${clock(o.creada)}</span>${borr?' · <b style="color:var(--warn)">Sin enviar</b>':''}</div>
     ${o.tipo==='domicilio'?`<div class="pd-dir">${esc(o.direccion)}<span class="muted small">${esc(o.zona)}${o.tSalida?' · salió '+hhmm(o.tSalida):''}${o.domiciliario?' · '+esc(o.domiciliario):''}</span></div>`:''}
@@ -1282,9 +1422,9 @@ function vConfig(){
       :INSTALAR?'<p class="small muted">Instálala para abrirla desde un ícono, a pantalla completa y sin barra del navegador.</p><button class="btn primary" data-act="instalar">Instalar app</button>'
       :'<p class="small muted">En Android: abre la página publicada en Chrome, toca el menú ⋮ y elige <b>Instalar app</b> (o "Agregar a la pantalla principal"). En la tablet de cocina mantén presionado el ícono para entrar directo a Cocina o Caja.</p>'}
     </section>
-    <section class="card locked"><div class="bar"><h3>Impresoras</h3><span class="pill">Fase final</span></div>
-      <p class="small muted">Impresora térmica Bluetooth (58 u 80 mm, ESC/POS). La estación de cocina imprimirá cada comanda sola, y caja la precuenta y el recibo. Separación por estación: cocina y barra.</p>
-      <button class="btn" disabled>Conectar impresora</button></section>
+    <section class="card"><div class="bar"><h3>Impresora de este equipo</h3>${impError?'<span class="pill bad">Con problema</span>':IMP.modo?'<span class="pill ok">Lista</span>':'<span class="pill">Sin configurar</span>'}</div>
+      <p class="small muted">Térmica de 58 u 80 mm por Bluetooth (ESC/POS). El equipo que tenga la impresora saca solas las comandas nuevas de cocina y barra, y desde caja imprime la precuenta y el recibo. Se configura en cada equipo; también desde el botón 🖨️ de arriba.</p>
+      <button class="btn${IMP.modo?'':' primary'}" data-act="impresora">${IMP.modo?'Ver impresora':'Configurar impresora'}</button></section>
   </div>`;
 }
 
@@ -1325,7 +1465,29 @@ function renderModal(){
     <div class="r big"><span>TOTAL</span><span>${money(t)}</span></div><hr>
     ${+S.config.propina?`<div class="r"><span>Propina sugerida ${S.config.propina}%</span><span>${money(t*S.config.propina/100)}</span></div>
     <div class="c" style="font-size:.74rem">La propina es voluntaria. Puede aceptarla, modificarla o rechazarla.</div>`:''}<div class="c" style="font-size:.74rem">Documento no válido como factura</div></div>
-    <button class="btn" disabled>Imprimir por Bluetooth · se activa en la fase final</button>`}
+    ${IMP.modo?`<button class="btn primary" data-act="impPrecuenta" data-id="${o.id}">Imprimir precuenta</button>`:'<button class="btn" data-act="impresora">Configurar impresora para imprimir</button>'}`}
+  if(M.type==='recibo'){const o=ord(M.oid);if(!o){U.modal=null;return renderModal()}
+    h=`${head('Cobrado')}<p class="muted">${esc(label(o))} · Pedido ${o.num} · ${money(total(o)+(+o.pago?.propina||0))} en ${MET[o.pago?.metodo]||''}</p>
+    <div class="row"><button class="btn primary big" data-act="impRecibo" data-id="${o.id}">Imprimir recibo</button><button class="btn big" data-act="close">No imprimir</button></div>`}
+  if(M.type==='impresora'){const ok=serialOK();
+    const est=impError?'<span class="pill bad">Con problema</span>':IMP.modo==='serial'?(impW?'<span class="pill ok">Conectada</span>':'<span class="pill ok">Configurada</span>'):IMP.modo==='rawbt'?'<span class="pill ok">Con la app RawBT</span>':'<span class="pill">Sin configurar</span>';
+    const sel=(k,ops)=>`<select data-imp="${k}">${ops.map(([v,n])=>`<option value="${v}" ${String(IMP[k])===String(v)?'selected':''}>${n}</option>`).join('')}</select>`;
+    h=`${head('Impresora de este equipo')}<div class="bar">${est}<span class="small muted">${IMP.modo==='serial'?'Bluetooth directo desde Chrome':IMP.modo==='rawbt'?'Cada impresión abre RawBT un momento':''}</span></div>
+    ${impError?`<p class="small" style="color:var(--bad)">${esc(impError)}</p><button class="btn sm primary" data-act="impReintentar">Ya la revisé, volver a imprimir</button>`:''}
+    ${IMP.modo?'':`<ol class="small muted pasos-imp"><li>Enciende la impresora y ponle el rollo de papel.</li>
+      <li>En este celular o tablet entra a <b>Ajustes › Bluetooth</b>, busca la impresora (suele aparecer como <b>Printer001</b>, <b>BlueTooth Printer</b>, <b>MTP-II</b> o <b>POS-5890</b>) y vincúlala. Si pide clave: <b>0000</b> o <b>1234</b>.</li>
+      <li>Vuelve aquí, toca <b>Conectar impresora</b> y elígela de la lista.</li></ol>`}
+    <div class="row">${ok?`<button class="btn ${IMP.modo?'':'primary'}" data-act="impConectar">${IMP.modo==='serial'?'Cambiar de impresora':'Conectar impresora'}</button>`:''}${IMP.modo?'<button class="btn primary" data-act="impPrueba">Imprimir prueba</button>':''}</div>
+    ${ok?'':'<p class="small muted">Este navegador no puede conectarse a impresoras Bluetooth. Abre la app en <b>Google Chrome</b> actualizado. Otra opción: instala la app <b>RawBT</b> desde Play Store, vincúlala con la impresora y toca el botón de abajo.</p>'}
+    ${IMP.modo!=='rawbt'?`<button class="btn sm ghost" data-act="impRawbt" style="align-self:flex-start">Usar la app RawBT en vez de Bluetooth directo</button>`:''}
+    ${IMP.modo?`<div class="panel">
+      <label class="field"><span>Papel</span>${sel('ancho',[[32,'58 mm'],[48,'80 mm']])}</label>
+      <label class="field"><span>Comandas automáticas</span>${sel('auto',[['','No, solo cuando toque imprimir'],['todas','Sí, todas (cocina y barra)'],['cocina','Sí, solo las de cocina'],['barra','Sí, solo las de barra']])}</label>
+      <label class="field"><span>Copias de cada comanda</span>${sel('copias',[[1,'1 copia'],[2,'2 copias']])}</label>
+      <label class="field"><span>Recibo al cobrar</span>${sel('recibo',[['preguntar','Preguntar cada vez'],['siempre','Imprimir siempre'],['nunca','No imprimir']])}</label>
+      <label class="imp-chk"><input type="checkbox" data-imp="tildes" ${IMP.tildes?'checked':''}> Imprimir tildes y ñ (apágalo si salen símbolos raros)</label>
+      <p class="small muted">Con comandas automáticas deja la app abierta en este equipo: imprime las comandas de los meseros, de la carta QR y los pedidos web apenas se aprueban. En la pantalla de Cocina cada comanda tiene <b>Reimprimir</b>.</p></div>
+      <button class="btn sm ghost" data-act="impOlvidar" style="align-self:flex-start">Quitar la impresora de este equipo</button>`:''}`}
   if(M.type==='nuevoPedido'){
     h=`${head('Nuevo pedido')}<form data-form="pedido" class="panel">
       <div class="radio"><label><input type="radio" name="tipo" value="domicilio" checked> Domicilio</label><label><input type="radio" name="tipo" value="llevar"> Para llevar</label></div>
@@ -1422,6 +1584,21 @@ const ACT={
   enviar:()=>{const o=ord(U.active);const n=enviarCocina(o);save();render();if(n&&n.length)toast('Comanda '+n.map(x=>'#'+x).join(' y ')+' enviada');else toast('Productos registrados')},
   enviarPedido:id=>{const n=enviarCocina(ord(id));save();render();if(n.length)toast('Comanda '+n.map(x=>'#'+x).join(' y ')+' enviada')},
   precuenta:()=>{U.modal={type:'precuenta',oid:U.active};renderModal()},
+  impresora:()=>{U.modal={type:'impresora'};renderModal()},
+  impConectar:async()=>{
+    try{const p=await impPedirPuerto();await impCerrar();impPort=p;
+      for(const x of await navigator.serial.getPorts())if(x!==p)try{await x.forget()}catch(e){}
+      if(!await impAbrir(false))return;
+      const nuevo=IMP.modo!=='serial';IMP.modo='serial';impError='';impGuardar();renderModal();toast('Impresora conectada');
+      if(nuevo)imprimir(pruebaBytes(),'la prueba')}
+    catch(e){if(e.name!=='NotFoundError')toast('No se pudo conectar: '+(e.message||e),'bad')}},
+  impRawbt:()=>{IMP.modo='rawbt';impError='';impGuardar();renderModal();toast('Se imprimirá con la app RawBT')},
+  impPrueba:()=>imprimir(pruebaBytes(),'la prueba',true).then(ok=>{renderModal();if(ok)toast('Prueba enviada a la impresora')}),
+  impOlvidar:async()=>{await impCerrar();try{impPort&&await impPort.forget()}catch(e){}impPort=null;impError='';IMP={...IMP_DEF};impGuardar();renderModal();toast('Impresora quitada de este equipo')},
+  impReintentar:()=>{impError='';pintarImp();imprimir(pruebaBytes(),'la prueba',true).then(ok=>{renderModal();if(ok){toast('Impresora de nuevo en línea');revisarImpresion()}})},
+  impPrecuenta:id=>{const o=ord(id);if(o)imprimir(cuentaBytes(o,'precuenta'),'la precuenta',true).then(ok=>ok&&toast('Precuenta impresa'))},
+  impRecibo:id=>{const o=ord(id);if(!o)return;if(U.modal&&U.modal.type==='recibo'){U.modal=null;renderModal()}imprimir(cuentaBytes(o,'recibo'),'el recibo',true).then(ok=>ok&&toast('Recibo impreso'))},
+  impComanda:id=>{const c=S.comandas.find(x=>x.id===id);if(c)imprimir(comandaBytes(c,true),'la comanda',true).then(ok=>ok&&toast('Comanda #'+c.num+' reimpresa'))},
   pedirCuenta:()=>{const o=ord(U.active);o.cuentaPedida=!o.cuentaPedida;save();render()},
   back:()=>{U.view=U.back;U.active=null;U.q='';render()},
   toTicket:()=>document.getElementById('ticket')?.scrollIntoView({behavior:'smooth'}),
@@ -1477,7 +1654,7 @@ const ACT={
     o.estado='pagada';o.cuentaPedida=false;o.cobradoPor=yo()?.nombre||'';o.pago={metodo:M.metodo,total:t,propina:prop,t:now(),recibido:rec||pagar,ref:M.ref||''};
     if(o.tipo==='mesa'){cerrarComandas(o);o.entrega='entregado'}
     save();U.modal=null;if(U.view==='pedido'&&U.active===o.id){U.view=U.back;U.active=null}
-    render();toast('Cobrado '+money(pagar)+' · '+MET[M.metodo]+(M.metodo==='efectivo'&&rec>pagar?' · cambio '+money(rec-pagar):''))},
+    render();toast('Cobrado '+money(pagar)+' · '+MET[M.metodo]+(M.metodo==='efectivo'&&rec>pagar?' · cambio '+money(rec-pagar):''));impTrasCobro(o)},
   openOrden:id=>{U.active=id;U.back=U.view==='pedido'?U.back:U.view;U.view='pedido';U.cat='all';U.q='';render()},
   nuevoPedido:()=>{U.modal={type:'nuevoPedido'};renderModal()},
   aprobar:id=>{const o=ord(id);const u=yo();if(!o)return;if(!puedeAprobar()){toast('Solo caja o el administrador aprueban pagos','bad');return}
@@ -1634,6 +1811,9 @@ document.addEventListener('change',e=>{
   if(t.id==='recCopiar'&&t.value&&U.modal&&U.modal.type==='receta'){const o=prod(t.value);if(o){U.modal.rec=o.receta.map(r=>[r[0],r[1]]);renderModal();toast('Receta copiada de '+o.nombre+'. Ajusta y guarda.')}}
   if(t.id==='insUnidad'&&U.modal&&U.modal.type==='insumo'&&!U.modal.iid){U.modal.u=t.value;const f=t.closest('form');const keep={nombre:f.nombre.value};renderModal();const nf=document.querySelector('form[data-form=insumo]');if(nf)nf.nombre.value=keep.nombre}
   if(t.dataset.opc&&t.type==='checkbox'){const [i,,cat]=t.dataset.opc.split(':');const g=S.config.opciones[+i];if(g){g.cats=t.checked?[...new Set([...(g.cats||[]),cat])]:(g.cats||[]).filter(x=>x!==cat);t.closest('.chip')?.classList.toggle('on',t.checked);save()}}
+  if(t.dataset.imp){const k=t.dataset.imp;IMP[k]=t.type==='checkbox'?(t.checked?1:0):['ancho','copias'].includes(k)?+t.value:t.value;
+    if(k==='auto'&&t.value){IMP.desde=now();IMP.hechas=[]}impGuardar();
+    if(k==='auto')toast(t.value?'Desde ahora las comandas nuevas salen solas en esta impresora':'Comandas automáticas apagadas')}
   if(t.name==='tipo'&&t.form?.dataset.form==='pedido'){t.form.querySelector('.only-dom').hidden=t.value!=='domicilio'}
 });
 document.addEventListener('keydown',e=>{
