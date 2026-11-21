@@ -227,7 +227,7 @@ const LS=()=> 'dge_cli_'+(MESA?MESA:'web');
 // Clave de la app del restaurante: sin hoja conectada, los pedidos de prueba le llegan por este mismo navegador
 const PUENTE='dge_pos_v2';
 const st={menu:null,view:'menu',cat:null,q:'',cart:[],tipo:'',pedido:null,info:null,sending:false,err:null,sheet:null,cmp:null,cot:null,cotando:false,gps:null,
-  form:{nombre:'',tel:'',direccion:'',zona:'0',pago:'',nota:''}};
+  form:{nombre:'',tel:'',direccion:'',mun:'',zona:'0',pago:'',nota:''}};
 const claveLinea=l=>[l.pid,[...l.sin].sort().join('|'),[...(l.con||[])].sort().join('|'),[...l.ext].sort().join('|'),(l.nota||'').trim()].join('#');
 const normLinea=l=>{const x={pid:l.pid,cant:Math.max(1,Math.min(20,+l.cant||1)),sin:Array.isArray(l.sin)?l.sin.map(String):[],con:Array.isArray(l.con)?l.con.map(String):[],ext:Array.isArray(l.ext)?l.ext.map(String):[],nota:String(l.nota||'')};x.k=claveLinea(x);return x};
 function persist(){try{localStorage.setItem(LS(),JSON.stringify({cart:st.cart,pedido:st.pedido,form:st.form,tipo:st.tipo}))}catch(e){}}
@@ -370,10 +370,12 @@ function cotHTML(){
   const gratis=e.gratis&&cartT()>=e.gratis;
   return `<div class="cot ok"><b>Domicilio: ${kmTxt(q.km)} · ${gratis?'gratis':money(q.costo)}</b>${q.dir?`<span>${esc(q.dir)}</span>`:''}${e.gratis&&!gratis?`<span>Gratis en pedidos desde ${money(e.gratis)}</span>`:''}</div>`;
 }
+const muns=()=>(st.menu&&st.menu.envio&&st.menu.envio.municipios)||[];
+const munSel=()=>muns().includes(st.form.mun)?st.form.mun:(muns()[0]||'');
 async function cotizar(){
   const f=st.form;if(!st.gps&&f.direccion.trim().length<5){fail('Escribe tu dirección o toca "Usar mi ubicación".');return}
   st.cotando=true;st.err=null;render();
-  try{const r=await apiGet(Object.assign({action:'envio'},st.gps?{lat:st.gps.lat,lng:st.gps.lng}:{dir:f.direccion.trim()}));
+  try{const r=await apiGet(Object.assign({action:'envio'},st.gps?{lat:st.gps.lat,lng:st.gps.lng}:{dir:f.direccion.trim(),mun:munSel()}));
     st.cot=r.ok?r:{error:r.error||'No pudimos calcular el domicilio.'};
     if(r.ok&&!st.gps)st.cotDir=f.direccion.trim();}
   catch(e){st.cot={error:'No hay conexión. Intenta de nuevo.'}}
@@ -387,7 +389,7 @@ function pasosWeb(){
     <button class="tipo ${st.tipo==='llevar'?'on':''}" data-a="tipo" data-v="llevar" aria-pressed="${st.tipo==='llevar'}"><b>Recoger en el local</b><span>Sin costo de envío</span></button></div></section>
   ${st.tipo?`<form class="card" id="fdatos" autocomplete="on"><h3><span class="nstep">2</span>${st.tipo==='domicilio'?'¿A dónde lo llevamos?':'¿A nombre de quién?'}</h3>
     <div class="grid2"><label class="field">Nombre<input name="nombre" data-f="nombre" value="${esc(f.nombre)}" required autocomplete="name"></label><label class="field">Celular<input name="tel" data-f="tel" value="${esc(f.tel)}" inputmode="tel" required autocomplete="tel"></label></div>
-    ${st.tipo==='domicilio'&&autoEnvio()?`<label class="field">Dirección<input data-f="direccion" value="${esc(f.direccion)}" placeholder="Calle, número, barrio" autocomplete="street-address"></label>
+    ${st.tipo==='domicilio'&&autoEnvio()?`${muns().length>1?`<label class="field">Municipio<select data-f="mun">${muns().map(x=>`<option ${munSel()===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label>`:''}<label class="field">Dirección<input data-f="direccion" value="${esc(f.direccion)}" placeholder="Calle, número, barrio" autocomplete="street-address"></label>
     <div class="row"><button type="button" class="btn" data-a="gps">${st.gps?'✓ Ubicación tomada':'Usar mi ubicación'}</button><button type="button" class="btn" data-a="cotizar" ${st.cotando?'disabled':''}>${st.cotando?'Calculando…':'Calcular domicilio'}</button></div>
     ${cotHTML()}
     <span class="small muted">"Usar mi ubicación" es lo más exacto si estás en el lugar de entrega. Igual escribe la dirección con apto o casa para el domiciliario.</span>`
@@ -548,7 +550,7 @@ const A={
     try{
       const body={action:'pedidoCliente',items:st.cart.map(l=>({pid:l.pid,cant:l.cant,sin:l.sin,con:l.con,ext:l.ext,nota:l.nota||''}))};
       if(m.mesa)Object.assign(body,{mesa:MESA,codigo:COD});
-      else Object.assign(body,{tipo:st.tipo,cliente:f.nombre.trim(),tel:f.tel.trim(),direccion:f.direccion.trim(),zona:f.zona,lat:st.cot&&!st.cot.error?st.cot.lat:'',lng:st.cot&&!st.cot.error?st.cot.lng:'',pago:f.pago,nota:f.nota.trim(),...(f.pago==='efectivo'?{pagaCon:pagaConN()}:{comprobante:st.cmp})});
+      else Object.assign(body,{tipo:st.tipo,cliente:f.nombre.trim(),tel:f.tel.trim(),direccion:f.direccion.trim(),mun:munSel(),zona:f.zona,lat:st.cot&&!st.cot.error?st.cot.lat:'',lng:st.cot&&!st.cot.error?st.cot.lng:'',pago:f.pago,nota:f.nota.trim(),...(f.pago==='efectivo'?{pagaCon:pagaConN()}:{comprobante:st.cmp})});
       const r=await apiPost(body);if(!r.ok)throw new Error(r.error||'No se pudo enviar el pedido.');
       st.pedido=r.pedido;st.cart=[];st.cmp=null;st.cot=null;st.gps=null;st.info=null;st.view='estado';persist();
       toast(m.mesa?'Listo, tu pedido ya está en cocina':f.pago==='efectivo'?'Pedido enviado. Lo confirmamos en un momento':'Pedido enviado. Estamos revisando tu pago');
@@ -590,7 +592,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',async e=>{const t=e.target;
   if(t.id==='cmpFile'&&t.files&&t.files[0]){try{st.cmp=await comprimir(t.files[0]);st.err=null;render()}catch(x){toast('No pudimos leer esa imagen. Prueba con otro pantallazo.','bad')}return}
   if(t.id==='pagaCon')return;
-  if(t.dataset.f){st.form[t.dataset.f]=t.value;persist();if(['zona','pago'].includes(t.dataset.f))render()}});
+  if(t.dataset.f){st.form[t.dataset.f]=t.value;persist();if(t.dataset.f==='mun'&&!st.gps)st.cot=null;if(['zona','pago','mun'].includes(t.dataset.f))render()}});
 document.addEventListener('submit',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&st.sheet){st.sheet=null;renderSheet()}});
 

@@ -673,7 +673,7 @@ function aplicar(st){
   S.reservas=st.reservas.map(r=>({...r,t:+r.t,personas:+r.personas||1,mesaId:r.mesaId||null}));
   if(Array.isArray(st.usuarios)&&st.usuarios.length)S.usuarios=st.usuarios.map(u=>({id:String(u.id),nombre:String(u.nombre),rol:u.rol,pinHash:u.pinHash,activo:!!u.activo}));
   const c=st.config||{};
-  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones','local','ciudad','tramos','envioGratis','autoAgotar','agotadosAuto','efectivoWeb','iaActiva','autoAprobarIA','waTextos','waApagados'].forEach(k=>{
+  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones','local','ciudad','municipios','tramos','envioGratis','autoAgotar','agotadosAuto','efectivoWeb','iaActiva','autoAprobarIA','waTextos','waApagados'].forEach(k=>{
     if(c[k]===undefined)return;if(c[k]===''&&typeof S.config[k]==='number')return;S.config[k]=c[k]});
   asegurarOpciones();S.config.agotadosAuto=listaAuto();
   S.turno=+c.turno||S.turno;S.contado=c.contado||'';S.seq=(+c.seqComanda||100)+1;S.num=(+c.numOrden||0)+1;
@@ -1608,7 +1608,8 @@ function vConfig(){
       <div class="field"><span>Ubicación del local</span>${c.local&&c.local.lat?`<div class="small"><b>${(+c.local.lat).toFixed(5)}, ${(+c.local.lng).toFixed(5)}</b> · <a href="https://www.google.com/maps/search/?api=1&query=${c.local.lat},${c.local.lng}" target="_blank" rel="noopener">ver en el mapa</a></div>`:'<div class="small" style="color:var(--warn)">Sin ubicación: los clientes eligen zona a mano.</div>'}
         <div class="row"><button class="btn sm primary" data-act="localGps">Usar la ubicación de este equipo</button></div>
         <input id="localTxt" placeholder="O pega un enlace de Google Maps o coordenadas: 10.9878, -74.7889"><button class="btn sm" data-act="localTxt">Guardar ubicación pegada</button></div>
-      ${f('ciudad','Ciudad (para buscar las direcciones escritas)')}
+      ${f('ciudad','Ciudad del local (ej. Soledad, Atlántico)')}
+      ${f('municipios','Municipios donde entregas, separados por coma (ej. Soledad, Barranquilla, Malambo)')}
       <div class="field"><span>Tramos</span>${(c.tramos||[]).map((t,i)=>`<div class="tramo"><span>Hasta</span><input type="number" inputmode="decimal" step="0.5" data-tramo="${i}:km" value="${t.km}" aria-label="Kilómetros"><span>km</span><input type="number" inputmode="numeric" step="500" data-tramo="${i}:c" value="${t.c}" aria-label="Valor"><button class="btn sm ghost" data-act="tramoDel" data-id="${i}" aria-label="Quitar tramo">×</button></div>`).join('')}
         <button class="btn sm" data-act="tramoAdd" style="align-self:flex-start">+ Agregar tramo</button>
         <span class="small muted">Más allá del último tramo no se hacen domicilios.</span></div>
