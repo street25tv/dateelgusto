@@ -595,7 +595,9 @@ document.addEventListener('submit',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&st.sheet){st.sheet=null;renderSheet()}});
 
 async function boot(){
-  st.menu=null;st.err=null;st.view='menu';st.info=null;st.sheet=null;restore();render();
+  st.menu=null;st.err=null;st.view='menu';st.info=null;st.sheet=null;restore();
+  if(qs.get('p')&&qs.get('k')&&!MESA){st.pedido={id:qs.get('p'),clave:qs.get('k'),num:'—'};persist();history.replaceState(null,'',location.pathname)}
+  render();
   try{
     const r=await apiGet(Object.assign({action:'menu'},MESA?{m:MESA,c:COD}:{}));
     if(!r.ok)throw new Error(r.error||'No se pudo cargar la carta.');

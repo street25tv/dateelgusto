@@ -82,6 +82,13 @@ h3{font-size:1rem;font-weight:700}
 .snd.on{border-color:var(--accent);background:var(--accent-soft)}
 .snd.warn{border-color:var(--warn);background:var(--warn-soft);animation:sndPulse 1.6s ease-in-out infinite}
 .snd.off{opacity:.65}
+.verif{border-radius:10px;padding:10px 12px;font-size:.84rem;display:flex;flex-direction:column;gap:4px;background:var(--surface-2)}
+.verif ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}.verif li.no{color:var(--bad);font-weight:600}
+.verif.ok{background:var(--accent-soft)}.verif.ok b{color:var(--accent)}.verif.revisar{background:var(--warn-soft)}.verif.mal{background:var(--bad-soft,var(--warn-soft))}.verif.mal b{color:var(--bad)}.verif.wait{color:var(--muted)}
+.verif .lnk{align-self:flex-start;text-decoration:underline}
+.btn.wa{border-color:#25D366;color:var(--fg)}.btn.wa.primary{background:#1FA855;color:#fff;border-color:#1FA855}
+.wa-cfg{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}.wa-cfg textarea{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--surface);color:var(--fg);font:inherit;font-size:.86rem;resize:vertical}.wa-cfg textarea:disabled{opacity:.5}
+.wa-prev{background:#DCF8C6;color:#111B21;border-radius:10px 10px 2px 10px;padding:10px 12px;white-space:pre-wrap;font-size:.9rem;align-self:flex-end;max-width:100%}
 .pasos-imp{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .imp-chk{display:flex;gap:10px;align-items:center;font-size:.9rem}.imp-chk input{width:18px;height:18px;flex:none}
 @keyframes sndPulse{50%{box-shadow:0 0 0 6px var(--warn-soft)}}
@@ -348,6 +355,9 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 .hrow .tr i{display:block;height:100%;background:var(--accent);border-radius:5px}
 .hrow span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hrow b{font-variant-numeric:tabular-nums;font-weight:600}
+.rep-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}.rep-f{display:inline-flex;gap:6px;align-items:center}.rep-f input{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface);color:var(--fg);font:inherit}
+.rep-acts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.rep-wide{grid-column:1/-1}
+@media (max-width:560px){.kpi b{font-size:1.2rem;white-space:nowrap}.rep-bar .seg button{padding:6px 9px}}
 .cierre{display:flex;flex-direction:column;gap:6px}
 .cierre>div{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
 .cierre .tot{font-weight:800;font-family:var(--f-display);font-size:1.1rem;border-top:1px solid var(--line);padding-top:6px}
@@ -636,6 +646,12 @@ async function flush(){
   }catch(e){setNet('off')}
   finally{syncing=false;if(cambios()){clearTimeout(flushT);flushT=setTimeout(flush,NET==='ok'?300:4000)}}
 }
+async function enviarCierres(){
+  if(!API.url)return;const L=cierresLocales();const pend=L.filter(c=>c.pend);if(!pend.length)return;
+  for(const c of pend){try{const r=await fetch(API.url,{method:'POST',body:JSON.stringify({token:API.token,action:'cierre',cierre:{...c,pend:undefined}})});const j=await r.json();if(j.ok){c.pend=false;REP.tc=0}}catch(e){}}
+  try{localStorage.setItem(CIERRES_K,JSON.stringify(L))}catch(e){}
+}
+setInterval(enviarCierres,60000);
 async function poll(){
   if(!API.url||syncing||cambios())return;
   try{
@@ -657,7 +673,7 @@ function aplicar(st){
   S.reservas=st.reservas.map(r=>({...r,t:+r.t,personas:+r.personas||1,mesaId:r.mesaId||null}));
   if(Array.isArray(st.usuarios)&&st.usuarios.length)S.usuarios=st.usuarios.map(u=>({id:String(u.id),nombre:String(u.nombre),rol:u.rol,pinHash:u.pinHash,activo:!!u.activo}));
   const c=st.config||{};
-  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones','local','ciudad','tramos','envioGratis','autoAgotar','agotadosAuto','efectivoWeb'].forEach(k=>{
+  ['nombre','nit','direccion','tel','impoconsumo','propina','base','zonas','bloqueo','urlCliente','abiertoWeb','confirmarWeb','nequi','daviplata','breb','catExtras','opciones','local','ciudad','tramos','envioGratis','autoAgotar','agotadosAuto','efectivoWeb','iaActiva','autoAprobarIA','waTextos','waApagados'].forEach(k=>{
     if(c[k]===undefined)return;if(c[k]===''&&typeof S.config[k]==='number')return;S.config[k]=c[k]});
   asegurarOpciones();S.config.agotadosAuto=listaAuto();
   S.turno=+c.turno||S.turno;S.contado=c.contado||'';S.seq=(+c.seqComanda||100)+1;S.num=(+c.numOrden||0)+1;
@@ -680,7 +696,7 @@ function aplicar(st){
     if(U.role==='domiciliario'||U.view==='reparto')S.ordenes.filter(o=>o.tipo==='domicilio'&&pedidoEstado(o)==='listo'&&o.entrega!=='en_camino'&&prevO[o.id]&&prevO[o.id].st!=='listo').forEach(o=>avisos.push('Listo para salir: pedido '+o.num+' · '+(o.direccion||'')));
     if(avisos.length){beep(avisos.some(a=>/^Pedido web|Nueva comanda|comandas nuevas|QR|Listo para salir/.test(a))?'pedido':'');[...new Set(avisos)].slice(0,3).forEach(a=>toast(a))}
   }
-  revisarImpresion();
+  revisarImpresion();setTimeout(verificarPendientes,500);
   const a=document.activeElement;
   if(!U.modal&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))render();else renderNav();
 }
@@ -1002,7 +1018,7 @@ const I={
 const ico=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
 const NAV=[['mesas','Mesas'],['cocina','Cocina'],['caja','Caja'],['pedidos','Domicilios'],['reparto','Reparto'],['qr','Carta QR'],['reservas','Reservas'],['inventario','Inventario'],['reportes','Reportes'],['config','Ajustes']];
 const ROLES={admin:NAV.map(n=>n[0]),mesero:['mesas','pedidos','qr','reservas'],cocina:['cocina','inventario'],caja:['mesas','caja','pedidos','reservas','reportes'],domiciliario:['reparto']};
-const TITLES={mesas:['Mesas','Estado de las mesas en tiempo real'],pedido:['Tomar pedido','Agrega productos y envía la comanda'],cocina:['Cocina','Pantalla de comandas por estación'],caja:['Caja','Cobros, propinas y cuentas abiertas'],pedidos:['Domicilios y para llevar','Pedidos web por aprobar, WhatsApp, teléfono y mostrador'],reparto:['Reparto','Pedidos listos para salir y entregas en camino'],qr:['Carta QR','Lo que ve el cliente al escanear la mesa'],reservas:['Reservas','Agenda de mesas y recordatorios'],inventario:['Inventario','Insumos, recetas y costo por plato'],reportes:['Reportes','Ventas del turno y cierre de caja'],config:['Ajustes','Datos del negocio, mesas, equipo e impresión']};
+const TITLES={mesas:['Mesas','Estado de las mesas en tiempo real'],pedido:['Tomar pedido','Agrega productos y envía la comanda'],cocina:['Cocina','Pantalla de comandas por estación'],caja:['Caja','Cobros, propinas y cuentas abiertas'],pedidos:['Domicilios y para llevar','Pedidos web por aprobar, WhatsApp, teléfono y mostrador'],reparto:['Reparto','Pedidos listos para salir y entregas en camino'],qr:['Carta QR','Lo que ve el cliente al escanear la mesa'],reservas:['Reservas','Agenda de mesas y recordatorios'],inventario:['Inventario','Insumos, recetas y costo por plato'],reportes:['Reportes','Ventas, productos, costos y cierres de caja'],config:['Ajustes','Datos del negocio, mesas, equipo e impresión']};
 
 function renderNav(){
   const allowed=ROLES[U.role];
@@ -1155,6 +1171,63 @@ function vCaja(){
 function pedidoEstado(o){const cs=cmdsOf(o);if(o.aprobacion==='pendiente')return 'aprobar';if(o.entrega==='en_camino')return 'camino';if(o.items.some(l=>!l.env&&l.est)||!cs.length)return 'cocina';return cs.every(c=>c.estado==='listo'||c.estado==='entregado')?'listo':'cocina'}
 const porAprobar=()=>S.ordenes.filter(o=>o.aprobacion==='pendiente'&&o.estado!=='anulada');
 const paraSalir=()=>S.ordenes.filter(o=>o.tipo==='domicilio'&&o.estado!=='anulada'&&o.entrega!=='entregado'&&o.entrega!=='en_camino'&&pedidoEstado(o)==='listo');
+function aprobarOrden(o,por){
+  o.aprobacion='aprobado';o.aprobadoPor=por;o.tAprobado=now();
+  const n=enviarCocina(o);S.comandas.filter(c=>n.includes(c.num)).forEach(c=>c.origen='web');
+  if(o.pagoPreferido!=='efectivo'){o.estado='pagada';o.cobradoPor=por;o.pago={metodo:o.pagoPreferido||'nequi',total:total(o),propina:0,t:now(),recibido:total(o),ref:o.verif&&o.verif.ref?'Ref. '+o.verif.ref:'Comprobante web'}}
+  save();
+}
+/* Verificación del comprobante con IA: la pide el equipo de caja o del administrador apenas llega el pedido */
+const VERIF={};
+async function verificarPago(id,forzar){
+  const o=ord(id);if(!o||!API.url||VERIF[id]==='…')return;
+  VERIF[id]='…';if(U.view==='pedidos')render();if(U.modal&&U.modal.type==='comprobante')renderModal();
+  try{const r=await fetch(API.url,{method:'POST',body:JSON.stringify({token:API.token,action:'verificar',id,forzar:!!forzar})});const j=await r.json();if(!j.ok)throw new Error(j.error);
+    delete VERIF[id];const x=ord(id);if(x&&j.verif){x.verif=j.verif;
+      if(j.primero&&j.verif.nivel==='ok'&&+S.config.autoAprobarIA===1&&x.aprobacion==='pendiente'&&puedeAprobar()){aprobarOrden(x,'Verificación IA');beep('pedido');toast('Pago verificado y aprobado solo · pedido '+x.num+' en cocina')}
+      else if(j.primero)toast('Comprobante del pedido '+x.num+': '+{ok:'todo cuadra',revisar:'revísalo',mal:'no cuadra'}[j.verif.nivel],j.verif.nivel==='mal'?'bad':'')}}
+  catch(e){VERIF[id]='Error: '+(e.message==='Failed to fetch'?'sin conexión':e.message)}
+  if(!U.modal&&['pedidos','reparto'].includes(U.view))render();else if(U.modal&&U.modal.type==='comprobante')renderModal();
+}
+function verificarPendientes(){
+  if(!API.url||!S.config.iaActiva||!puedeAprobar())return;
+  porAprobar().filter(o=>o.comprobante&&o.pagoPreferido!=='efectivo'&&!o.verif&&!VERIF[o.id]).slice(0,3).forEach(o=>verificarPago(o.id));
+}
+setInterval(verificarPendientes,8000);
+/* ---------- avisos por WhatsApp al cliente ----------
+   Un toque abre WhatsApp con el mensaje listo para el número del cliente; queda marcado como avisado. */
+const WA_DEF={confirmado:'Hola {nombre} 👋 Tu pedido #{pedido} en {negocio} ya está confirmado y en cocina. Total: {total}.{cobro} Síguelo aquí: {link}',
+  rechazado:'Hola {nombre}, no pudimos aprobar tu pedido #{pedido} en {negocio}: {motivo}. Escríbenos por aquí y lo solucionamos.',
+  camino:'Hola {nombre} 🛵 Tu pedido #{pedido} ya va en camino con {domiciliario}.{cobro}',
+  listo:'Hola {nombre} 🙌 Tu pedido #{pedido} ya está listo para recoger en {negocio}.{cobro}'};
+const WA_N={confirmado:'Pedido confirmado',rechazado:'Pedido rechazado',camino:'Va en camino',listo:'Listo para recoger'};
+const waTxt=k=>(S.config.waTextos&&S.config.waTextos[k])||WA_DEF[k];
+const waOn=k=>!(Array.isArray(S.config.waApagados)?S.config.waApagados:[]).includes(k);
+function telWA(t){t=String(t||'').replace(/\D/g,'');if(t.length===10&&t[0]==='3')return '57'+t;if(t.length===12&&t.startsWith('57'))return t;return ''}
+function linkSeg(o){const base=S.config.urlCliente||new URL('cliente.html',location.href).href;return o.clave&&o.canal==='Web'?base+(base.includes('?')?'&':'?')+'p='+encodeURIComponent(o.id)+'&k='+encodeURIComponent(o.clave):base}
+function waMensaje(o,k){
+  const t=total(o),pc=+o.pagaCon||0,debe=o.estado!=='pagada'&&o.pagoPreferido==='efectivo';
+  const cobro=!debe?'':k==='camino'?` Ten listos ${money(t)} en efectivo${pc>t?'; llevamos cambio para tus '+money(pc):''}.`:k==='listo'?` Pagas ${money(t)} al recoger.`:k==='confirmado'?` Pagas en efectivo ${o.tipo==='domicilio'?'al recibir':'al recoger'}.`:'';
+  const v={nombre:String(o.cliente||'').trim().split(/\s+/)[0]||'',pedido:o.num,negocio:S.config.nombre||'',total:money(t),motivo:o.motivoRechazo||'',domiciliario:o.domiciliario||'nuestro domiciliario',link:linkSeg(o),cobro};
+  return waTxt(k).replace(/\{(\w+)\}/g,(m,x)=>v[x]!==undefined?String(v[x]):m).replace(/ +([.,])/g,'$1').replace(/Hola  /,'Hola ').trim();
+}
+function avisoPend(o){
+  if(o.tipo==='mesa'||!telWA(o.tel))return null;const av=o.avisos&&!Array.isArray(o.avisos)?o.avisos:{};
+  const k=o.aprobacion==='rechazado'?'rechazado':o.estado==='anulada'||o.entrega==='entregado'?null:o.entrega==='en_camino'?'camino'
+    :o.tipo==='llevar'&&pedidoEstado(o)==='listo'?'listo':o.canal==='Web'&&o.aprobacion==='aprobado'&&!av.camino&&!av.listo?'confirmado':null;
+  return k&&!av[k]&&waOn(k)?k:null;
+}
+const avisoBtn=o=>{const k=avisoPend(o);return k?`<button class="btn sm wa" data-act="avisarWA" data-id="${o.id}" data-k="${k}">📲 Avisar: ${WA_N[k].toLowerCase()}</button>`:''};
+function verifHTML(o){
+  if(!o.comprobante||o.pagoPreferido==='efectivo')return '';
+  const v=o.verif,st=VERIF[o.id];
+  if(st==='…')return '<div class="verif wait">Verificando el comprobante con IA…</div>';
+  if(!v){if(st)return `<div class="verif mal">${esc(st)} <button class="lnk" data-act="reverificar" data-id="${o.id}"><b>Reintentar</b></button></div>`;
+    return S.config.iaActiva?'<div class="verif wait">Verificación con IA en cola…</div>':(yo()?.rol==='admin'?'<div class="verif small muted">Activa la verificación con IA en Ajustes para revisar los comprobantes solos.</div>':'')}
+  const tit={ok:'✓ El comprobante cuadra',revisar:'Revisa el comprobante',mal:'✕ El comprobante no cuadra'}[v.nivel];
+  return `<div class="verif ${v.nivel}"><b>${tit}</b><ul>${(v.puntos||[]).map(p=>`<li class="${p.ok?'si':'no'}">${p.ok?'✓':'!'} ${esc(p.t)}</li>`).join('')}</ul>
+    ${v.ref?`<span class="small muted">Ref. ${esc(v.ref)}</span>`:''}<button class="lnk small" data-act="reverificar" data-id="${o.id}">Volver a verificar</button></div>`;
+}
 const puedeAprobar=()=>{const u=yo();return !!u&&['admin','caja'].includes(u.rol)};
 const itemsTxt=o=>o.items.filter(l=>l.est).map(l=>`<div>${l.cant}× ${esc(l.nombre)}${l.nota?` <span class="muted">· ${esc(l.nota)}</span>`:''}</div>`).join('')||'Sin productos';
 // Con cuánto paga en efectivo y cuánto cambio hay que llevar
@@ -1168,13 +1241,14 @@ function pdHTML(o){
     <div class="pd-items">${itemsTxt(o)}</div>
     ${o.pagoPreferido==='efectivo'?`<footer><span class="pd-t">${money(total(o))}</span><span class="pill warn">Efectivo</span></footer>
     <div class="small">Paga ${o.tipo==='domicilio'?'al recibir':'al recoger'} · ${cambioPed(o)}</div>`
-    :`<footer><span class="pd-t">${money(total(o))}</span><span class="pill warn">Pago por verificar · ${MET[o.pagoPreferido]||'Transferencia'}</span></footer>`}
+    :`<footer><span class="pd-t">${money(total(o))}</span><span class="pill warn">Pago por verificar · ${MET[o.pagoPreferido]||'Transferencia'}</span></footer>${verifHTML(o)}`}
     <div class="row">${o.pagoPreferido==='efectivo'?'':`<button class="btn sm" data-act="verComprobante" data-id="${o.id}">Ver comprobante</button>`}${puedeAprobar()?`<button class="btn sm danger" data-act="rechazar" data-id="${o.id}">Rechazar</button><button class="btn sm primary" data-act="aprobar" data-id="${o.id}">${o.pagoPreferido==='efectivo'?'Confirmar y enviar a cocina':'Aprobar y enviar a cocina'}</button>`:'<span class="muted small">Lo aprueba caja o el administrador</span>'}</div></article>`;
   const st=pedidoEstado(o);const pag=o.estado==='pagada';const borr=o.items.some(l=>!l.env&&l.est);
   let acts='';
   if(st==='cocina')acts=(pag?'':`<button class="btn sm" data-act="openOrden" data-id="${o.id}">Editar</button>`)+(borr?`<button class="btn sm primary" data-act="enviarPedido" data-id="${o.id}">Enviar a cocina</button>`:'');
   if(st==='listo')acts=o.tipo==='domicilio'?`<span class="muted small">Esperando domiciliario</span><button class="btn sm" data-act="despachar" data-id="${o.id}">Despachar</button>`:`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Entregar al cliente</button>`;
   if(st==='camino')acts=`<button class="btn sm primary" data-act="entregarPedido" data-id="${o.id}">Marcar entregado</button>`;
+  acts=avisoBtn(o)+acts;
   if(!pag)acts+=`<button class="btn sm dark" data-act="cobrar" data-id="${o.id}">Cobrar</button>`;
   else if(IMP.modo)acts+=`<button class="btn sm" data-act="impRecibo" data-id="${o.id}">Recibo</button>`;
   return `<article class="pd"><header><b>${esc(o.cliente||'Cliente')}</b><span class="row" style="gap:4px">${o.canal==='Web'?'<span class="pill info">Web</span>':''}<span class="svc svc-${o.tipo} pill">${o.tipo==='domicilio'?'Domicilio':'Para llevar'}</span></span></header>
@@ -1215,7 +1289,7 @@ function vReparto(){
   const col=(t,xs,acts,vacio)=>`<div class="kcol"><div class="kcol-h"><h3>${t}</h3><span class="count">${xs.length}</span></div>${xs.map(o=>card(o,acts)).join('')||`<p class="empty">${vacio}</p>`}</div>`;
   return `<div class="bar"><span class="muted small">${hechos} entregados en el turno${todos?'':' por ti'}</span></div>
   <div class="kanban">${col('Listos para salir',listos,o=>`<button class="btn primary" data-act="salir" data-id="${o.id}">Salgo con este pedido</button>`,'Nada listo todavía')}
-  ${col(todos?'En camino':'Mis entregas',camino,o=>`${links(o)}<button class="btn primary" data-act="entregarPedido" data-id="${o.id}">Entregado</button>`,'No llevas pedidos')}
+  ${col(todos?'En camino':'Mis entregas',camino,o=>`${avisoBtn(o)}${links(o)}<button class="btn primary" data-act="entregarPedido" data-id="${o.id}">Entregado</button>`,'No llevas pedidos')}
   ${col('Preparándose',cocina,null,'Nada en cocina')}</div>`;
 }
 
@@ -1317,40 +1391,140 @@ function vInventario(){
 }
 
 /* ---------- REPORTES ---------- */
+/* ---------- REPORTES ----------
+   Turno actual: con lo que ya tiene el equipo. Otros rangos: el servidor manda las órdenes de esas fechas
+   (en modo demo se usan las guardadas en este navegador). El costo sale de las recetas con el costo actual de cada insumo. */
+const RANGOS=[['turno','Turno actual'],['hoy','Hoy'],['ayer','Ayer'],['7d','7 días'],['mes','Este mes'],['mesPas','Mes pasado'],['custom','Fechas']];
+const DIA=86400000;
+const iniDia=t=>{const d=new Date(t);d.setHours(0,0,0,0);return +d};
+const ymd=t=>new Date(t).toLocaleDateString('en-CA');
+const fecha=t=>new Date(t).toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+function rangoRep(){
+  const r=U.rep||'turno',h=iniDia(now());const d=new Date(h);
+  if(r==='hoy')return[h,now(),'Hoy'];
+  if(r==='ayer')return[h-DIA,h,'Ayer, '+fecha(h-DIA)];
+  if(r==='7d')return[h-6*DIA,now(),'Últimos 7 días'];
+  if(r==='mes'){const a=+new Date(d.getFullYear(),d.getMonth(),1);return[a,now(),d.toLocaleDateString('es-CO',{month:'long',year:'numeric'})]}
+  if(r==='mesPas'){const a=+new Date(d.getFullYear(),d.getMonth()-1,1),b=+new Date(d.getFullYear(),d.getMonth(),1);return[a,b,new Date(a).toLocaleDateString('es-CO',{month:'long',year:'numeric'})]}
+  if(r==='custom'){const a=U.repDesde?+new Date(U.repDesde+'T00:00'):h-6*DIA,b=(U.repHasta?+new Date(U.repHasta+'T00:00'):h)+DIA;return[a,Math.max(a+DIA,b),fecha(a)+' al '+fecha(Math.max(a+DIA,b)-DIA)]}
+  return[S.turno,now(),'Turno desde '+fecha(S.turno)+' '+hhmm(S.turno)];
+}
+const REP={key:'',data:null,cargando:false,error:'',t:0,cierres:null,tc:0};
+const CIERRES_K=K+'_cierres';
+function cierresLocales(){try{return JSON.parse(localStorage.getItem(CIERRES_K)||'[]')}catch(e){return[]}}
+function cierresTodos(){const m={};(REP.cierres||[]).forEach(c=>m[c.id]=c);cierresLocales().forEach(c=>{if(!m[c.id])m[c.id]=c});return Object.values(m).sort((a,b)=>b.hasta-a.hasta)}
+async function cargarRep(desde,hasta,soloCierres){
+  const key=soloCierres?'cierres':desde+'-'+hasta;
+  if(!API.url){REP.cierres=[];return}
+  if(soloCierres){if(REP.tc&&now()-REP.tc<60000)return;REP.tc=now()}
+  else{if(REP.key===key&&(REP.cargando||now()-REP.t<60000))return;REP.key=key;REP.cargando=true;REP.error='';REP.data=null}
+  try{const r=await fetch(API.url+'?action=reporte&token='+encodeURIComponent(API.token)+(soloCierres?'':'&desde='+desde+'&hasta='+hasta));const j=await r.json();if(!j.ok)throw new Error(j.error);
+    REP.cierres=j.cierres||[];if(!soloCierres&&REP.key===key){REP.data=j.ordenes||[];REP.t=now()}}
+  catch(e){if(!soloCierres&&REP.key===key)REP.error=e.message==='Failed to fetch'?'Sin conexión con la hoja.':e.message;if(soloCierres)REP.tc=0}
+  finally{if(!soloCierres&&REP.key===key)REP.cargando=false;if(U.view==='reportes'&&!U.modal)render()}
+}
+// Órdenes del rango: {pag: cobradas, anul: anuladas, web: pedidos web creados}
+function ordenesRep(){
+  const [a,b]=rangoRep();
+  let src;
+  if(U.rep==='turno'||!API.url)src=S.ordenes;
+  else{if(REP.key!==a+'-'+b||(!REP.data&&!REP.cargando&&!REP.error))cargarRep(a,b);src=REP.key===a+'-'+b?REP.data:null}
+  if(!src)return null;
+  const en=t=>(+t||0)>=a&&(+t||0)<b;
+  return{pag:src.filter(o=>o.estado==='pagada'&&o.pago&&en(o.pago.t)),anul:src.filter(o=>o.estado==='anulada'&&en(o.anuladoEn)),web:src.filter(o=>o.canal==='Web'&&en(o.creada))};
+}
+const prodBy=(pid,n)=>S.productos.find(p=>p.id===pid)||S.productos.find(p=>p.nombre===n);
+function costoLinea(l){const p=prodBy(l.pid,l.nombre);let c=p&&p.receta.length?costoReceta(p):null;
+  (l.ext||[]).forEach(n=>{const e=S.productos.find(x=>x.nombre===n);if(e&&e.receta.length&&c!=null)c+=costoReceta(e)});
+  return c==null?null:c*l.cant}
+function calcRep(R){
+  const pag=R.pag,v=pag.reduce((x,o)=>x+o.pago.total,0),prop=pag.reduce((x,o)=>x+(+o.pago.propina||0),0);
+  const fi=1+(+S.config.impoconsumo||0)/100;
+  const P={},C={},canal={},tipo={},met={},mes={},caj={},dom={},serie={},sem=[0,0,0,0,0,0,0];
+  let envios=0,costo=0,vSinRec=0,lineas=0;
+  const [a,b]=rangoRep();const porDia=b-a>1.5*DIA;
+  pag.forEach(o=>{
+    const t=o.pago.t,tot=o.pago.total;
+    const k=porDia?iniDia(t):(()=>{const d=new Date(t);d.setMinutes(0,0,0);return +d})();serie[k]=(serie[k]||0)+tot;
+    sem[(new Date(t).getDay()+6)%7]+=tot;
+    const cn=o.canal||(o.tipo==='mesa'?'Salón':'Mostrador');canal[cn]=(canal[cn]||0)+tot;
+    tipo[o.tipo]=(tipo[o.tipo]||0)+tot;
+    met[o.pago.metodo]=(met[o.pago.metodo]||0)+tot+(+o.pago.propina||0);
+    if(o.tipo==='mesa'){const m=o.mesero||'—';mes[m]=mes[m]||{v:0,n:0,p:0};mes[m].v+=tot;mes[m].n++;mes[m].p+=+o.pago.propina||0}
+    const cj=o.cobradoPor||'—';caj[cj]=caj[cj]||{v:0,n:0,ef:0};caj[cj].v+=tot;caj[cj].n++;if(o.pago.metodo==='efectivo')caj[cj].ef+=tot+(+o.pago.propina||0);
+    if(o.tipo==='domicilio'&&o.domiciliario){const d=dom[o.domiciliario]=dom[o.domiciliario]||{n:0,ef:0,env:0,km:0,min:0,nm:0};d.n++;
+      if(o.pago.metodo==='efectivo')d.ef+=tot;d.km+=+o.km||0;if(+o.tEntrega&&+o.tSalida&&o.tEntrega>o.tSalida){d.min+=(o.tEntrega-o.tSalida)/60000;d.nm++}}
+    o.items.forEach(l=>{
+      if(l.pid==='envio'){envios+=l.precio*l.cant;if(o.domiciliario&&dom[o.domiciliario])dom[o.domiciliario].env+=l.precio*l.cant;return}
+      const p=prodBy(l.pid,l.nombre);const key=p?p.id:l.nombre;const x=P[key]=P[key]||{n:p?p.nombre:l.nombre,cat:p?p.cat:'',c:0,v:0,co:0,sin:false};
+      const vl=l.precio*l.cant,cl=costoLinea(l);x.c+=l.cant;x.v+=vl;lineas+=vl;
+      if(cl==null){x.sin=true;vSinRec+=vl}else{x.co+=cl;costo+=cl}
+      const cid=x.cat||'otros';C[cid]=(C[cid]||0)+vl;
+    });
+  });
+  const neto=lineas/fi,margen=neto?(neto-costo)/neto*100:0;
+  const web=R.web,rech=web.filter(o=>o.aprobacion==='rechazado').length;
+  const apr=web.filter(o=>+o.tAprobado&&+o.creada);const tApr=apr.length?apr.reduce((x,o)=>x+(o.tAprobado-o.creada),0)/apr.length/60000:0;
+  return{v,n:pag.length,prop,imp:pag.reduce((x,o)=>x+impo(o.pago.total).imp,0),envios,costo,lineas,neto,margen,vSinRec,P,C,canal,tipo,met,mes,caj,dom,serie,porDia,sem,
+    web:{n:web.length,rech,tApr,ef:web.filter(o=>o.pagoPreferido==='efectivo').length},anul:R.anul};
+}
+const barras=(obj,fmt=money,lab=k=>k)=>{const e=Object.entries(obj).filter(x=>x[1]).sort((x,y)=>y[1]-x[1]);const mx=Math.max(1,...e.map(x=>x[1]));
+  return e.map(([k,x])=>`<div class="hrow"><span>${esc(lab(k))}</span><span class="tr"><i style="width:${x/mx*100}%"></i></span><b>${fmt(x)}</b></div>`).join('')||'<p class="empty">Sin datos.</p>'};
+const pct=n=>(isFinite(n)?n:0).toFixed(0)+'%';
 function vReportes(){
-  const ps=pagadasTurno();const v=ps.reduce((a,o)=>a+o.pago.total,0);const pr=ps.reduce((a,o)=>a+o.pago.propina,0);
-  const imp=ps.reduce((a,o)=>a+impo(o.pago.total).imp,0);
-  // por hora
-  const hb={};ps.forEach(o=>{const d=new Date(o.pago.t);d.setMinutes(0,0,0);hb[+d]=(hb[+d]||0)+o.pago.total});
-  const hk=Object.keys(hb).map(Number).sort((a,b)=>a-b);const hmax=Math.max(1,...Object.values(hb));
-  // platos
-  const pl={};ps.forEach(o=>o.items.filter(l=>l.est).forEach(l=>{pl[l.nombre]=pl[l.nombre]||{c:0,v:0};pl[l.nombre].c+=l.cant;pl[l.nombre].v+=l.cant*l.precio}));
-  const top=Object.entries(pl).sort((a,b)=>b[1].c-a[1].c).slice(0,7);const tmax=Math.max(1,...top.map(t=>t[1].c));
-  const mt={};ps.forEach(o=>{mt[o.pago.metodo]=(mt[o.pago.metodo]||0)+o.pago.total});const mmax=Math.max(1,...Object.values(mt));
-  const ms={};ps.forEach(o=>{const k=o.mesero||'—';ms[k]=ms[k]||{v:0,n:0,p:0};ms[k].v+=o.pago.total;ms[k].n++;ms[k].p+=o.pago.propina});
-  const ef=ps.filter(o=>o.pago.metodo==='efectivo');const efV=ef.reduce((a,o)=>a+o.pago.total,0);const efP=ef.reduce((a,o)=>a+o.pago.propina,0);
-  const esperado=S.config.base+efV+efP;
-  const anul=S.ordenes.filter(o=>o.estado==='anulada'&&+o.anuladoEn>=S.turno).sort((a,b)=>b.anuladoEn-a.anuladoEn);const contado=+String(S.contado).replace(/\D/g,'');
-  return `<div class="kpis">${kpi('Ventas del turno',money(v))}${kpi('Cuentas cobradas',ps.length)}${kpi('Ticket promedio',money(ps.length?v/ps.length:0))}${kpi('Propinas',money(pr))}${+S.config.impoconsumo?kpi('Impoconsumo',money(imp)):''}</div>
+  const adm=yo()?.rol==='admin';if(!adm)U.rep='turno';
+  const [a,b,lab]=rangoRep();const R=ordenesRep();
+  if(U.rep==='turno'||!REP.cierres)cargarRep(0,0,true);
+  const sel=`<div class="rep-bar">${adm?`<div class="seg">${RANGOS.map(([k,n])=>`<button class="${(U.rep||'turno')===k?'on':''}" data-act="repRango" data-id="${k}">${n}</button>`).join('')}</div>`:''}
+    ${U.rep==='custom'?`<span class="rep-f"><input type="date" id="repDesde" value="${U.repDesde||ymd(a)}"><span class="muted">al</span><input type="date" id="repHasta" value="${U.repHasta||ymd(b-1)}"></span>`:''}
+    <span class="muted small">${esc(lab)}</span></div>`;
+  if(!R)return sel+`<div class="card"><p class="empty">${REP.error?esc(REP.error)+' <button class="btn sm" data-act="repRecargar">Reintentar</button>':'Cargando las ventas de esas fechas…'}</p></div>`;
+  const D=calcRep(R),turno=U.rep==='turno';
+  const sk=Object.keys(D.serie).map(Number).sort((x,y)=>x-y),smax=Math.max(1,...Object.values(D.serie));
+  const ord=U.repOrden||'c';const prods=Object.values(D.P).sort((x,y)=>ord==='v'?y.v-x.v:ord==='m'?((y.v?(y.v/(1+S.config.impoconsumo/100)-y.co)/(y.v/(1+S.config.impoconsumo/100)):0)-(x.v?(x.v/(1+S.config.impoconsumo/100)-x.co)/(x.v/(1+S.config.impoconsumo/100)):0)):y.c-x.c);
+  const fi=1+(+S.config.impoconsumo||0)/100;
+  const catN=id=>S.cats.find(c=>c.id===id)?.n||'Otros';
+  const TIPO={mesa:'Mesa',domicilio:'Domicilio',llevar:'Para llevar'};
+  // cierre de caja del turno
+  const efV=R.pag.filter(o=>o.pago.metodo==='efectivo').reduce((x,o)=>x+o.pago.total,0),efP=R.pag.filter(o=>o.pago.metodo==='efectivo').reduce((x,o)=>x+(+o.pago.propina||0),0);
+  const esperado=(+S.config.base||0)+efV+efP,contado=+String(S.contado).replace(/\D/g,'');
+  const cierres=cierresTodos().filter(c=>turno||(c.hasta>=a&&c.hasta<b)).slice(0,turno?8:40);
+  return sel+`<div class="kpis">${kpi('Ventas',money(D.v),D.n+' cuentas')}${kpi('Ticket promedio',money(D.n?D.v/D.n:0))}
+    ${adm?kpi('Costo de lo vendido',money(D.costo),D.vSinRec?'sin receta: '+money(D.vSinRec)+' en ventas':'según recetas'):''}
+    ${adm?kpi('Margen bruto',pct(D.margen),'sobre ventas sin impuesto'):''}
+    ${kpi('Propinas',money(D.prop))}${D.envios?kpi('Domicilios cobrados',money(D.envios)):''}${+S.config.impoconsumo?kpi('Impoconsumo',money(D.imp)):''}</div>
+  <div class="rep-acts"><button class="btn sm" data-act="repCopiar">Copiar resumen</button><button class="btn sm" data-act="repCsv" data-id="detalle">Descargar ventas (Excel)</button><button class="btn sm" data-act="repCsv" data-id="productos">Descargar productos (Excel)</button></div>
   <div class="rep">
-    <section class="card"><h3>Ventas por hora</h3>
-      ${hk.length?`<div class="hours">${hk.map(k=>`<div class="hbar ${hb[k]===hmax?'top':''}" title="${hhmm(k)}: ${money(hb[k])}"><small>${kmoney(hb[k])}</small><i style="height:${(hb[k]/hmax*100).toFixed(1)}%"></i></div>`).join('')}</div>
-      <div class="hlab">${hk.map(k=>`<span>${new Date(k).toLocaleTimeString('es-CO',{hour:'numeric'})}</span>`).join('')}</div>`:'<p class="empty">Sin ventas todavía.</p>'}
+    <section class="card"><h3>${D.porDia?'Ventas por día':'Ventas por hora'}</h3>
+      ${sk.length?`<div class="hours">${sk.map(k=>`<div class="hbar ${D.serie[k]===smax?'top':''}" title="${D.porDia?fecha(k):hhmm(k)}: ${money(D.serie[k])}"><small>${kmoney(D.serie[k])}</small><i style="height:${(D.serie[k]/smax*82).toFixed(1)}%"></i></div>`).join('')}</div>
+      <div class="hlab">${sk.map(k=>`<span>${D.porDia?new Date(k).getDate():new Date(k).toLocaleTimeString('es-CO',{hour:'numeric'})}</span>`).join('')}</div>`:'<p class="empty">Sin ventas en estas fechas.</p>'}
+      ${D.porDia&&b-a>=7*DIA?`<h3 style="margin-top:12px">Por día de la semana</h3>${barras(Object.fromEntries(['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'].map((n,i)=>[n,D.sem[i]])))}`:''}
     </section>
-    <section class="card"><h3>Platos más vendidos</h3>
-      ${top.map(([n,d])=>`<div class="hrow"><span>${esc(n)}</span><span class="tr"><i style="width:${d.c/tmax*100}%"></i></span><b>${d.c}</b></div>`).join('')||'<p class="empty">Sin datos.</p>'}
-    </section>
-    <section class="card"><h3>Medios de pago</h3>
-      ${Object.entries(mt).sort((a,b)=>b[1]-a[1]).map(([k,x])=>`<div class="hrow"><span>${MET[k]}</span><span class="tr"><i style="width:${x/mmax*100}%"></i></span><b>${money(x)}</b></div>`).join('')||'<p class="empty">Sin datos.</p>'}
-      <h3 style="margin-top:8px">Por mesero</h3>
-      <div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Mesero</th><th class="r">Cuentas</th><th class="r">Ventas</th><th class="r">Propinas</th></tr></thead><tbody>
-      ${Object.entries(ms).sort((a,b)=>b[1].v-a[1].v).map(([k,d])=>`<tr><td>${esc(k)}</td><td class="r">${d.n}</td><td class="r">${money(d.v)}</td><td class="r">${money(d.p)}</td></tr>`).join('')}
+    <section class="card"><h3>Medios de pago</h3>${barras(D.met,money,k=>MET[k]||k)}
+      <h3 style="margin-top:10px">Por canal</h3>${barras(D.canal)}
+      <h3 style="margin-top:10px">Por tipo</h3>${barras(D.tipo,money,k=>TIPO[k]||k)}</section>
+    <section class="card rep-wide"><div class="bar"><h3>Productos</h3><span class="seg">${[['c','Más vendidos'],['v','Más ventas'],...(adm?[['m','Mejor margen']]:[])].map(([k,n])=>`<button class="${ord===k?'on':''}" data-act="repOrden" data-id="${k}">${n}</button>`).join('')}</span></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Producto</th><th>Categoría</th><th class="r">Cant.</th><th class="r">Ventas</th>${adm?'<th class="r">Costo</th><th class="r">Margen</th>':''}</tr></thead><tbody>
+      ${prods.slice(0,U.repTodos?999:15).map(x=>{const n=x.v/fi,m=n?(n-x.co)/n*100:0;return `<tr><td>${esc(x.n)}</td><td class="muted">${esc(catN(x.cat))}</td><td class="r">${x.c}</td><td class="r">${money(x.v)}</td>${adm?`<td class="r">${x.sin?'<span class="muted small">sin receta</span>':money(x.co)}</td><td class="r">${x.sin?'—':`<span class="pill ${m>=65?'ok':m>=50?'warn':'bad'}">${pct(m)}</span>`}</td>`:''}</tr>`}).join('')||`<tr><td colspan="6" class="empty">Sin ventas.</td></tr>`}
       </tbody></table></div>
+      ${prods.length>15?`<button class="btn sm ghost" data-act="repTodos">${U.repTodos?'Ver menos':'Ver los '+prods.length+' productos'}</button>`:''}
+      <h3 style="margin-top:10px">Por categoría</h3>${barras(Object.fromEntries(Object.entries(D.C).map(([k,x])=>[catN(k),x])))}</section>
+    <section class="card"><h3>Personal</h3>
+      ${Object.keys(D.mes).length?`<div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Mesero</th><th class="r">Mesas</th><th class="r">Ventas</th><th class="r">Propinas</th></tr></thead><tbody>
+      ${Object.entries(D.mes).sort((x,y)=>y[1].v-x[1].v).map(([k,d])=>`<tr><td>${esc(k)}</td><td class="r">${d.n}</td><td class="r">${money(d.v)}</td><td class="r">${money(d.p)}</td></tr>`).join('')}</tbody></table></div>`:''}
+      <div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Cobró</th><th class="r">Cobros</th><th class="r">Ventas</th><th class="r">Efectivo</th></tr></thead><tbody>
+      ${Object.entries(D.caj).sort((x,y)=>y[1].v-x[1].v).map(([k,d])=>`<tr><td>${esc(k)}</td><td class="r">${d.n}</td><td class="r">${money(d.v)}</td><td class="r">${money(d.ef)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Sin cobros.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><h3>Domicilios</h3>
+      ${Object.keys(D.dom).length?`<div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Domiciliario</th><th class="r">Entregas</th><th class="r">Efectivo</th><th class="r">Tiempo</th></tr></thead><tbody>
+      ${Object.entries(D.dom).sort((x,y)=>y[1].n-x[1].n).map(([k,d])=>`<tr><td>${esc(k)}</td><td class="r">${d.n}</td><td class="r"><b>${money(d.ef)}</b></td><td class="r">${d.nm?Math.round(d.min/d.nm)+' min':'—'}</td></tr>`).join('')}</tbody></table></div><p class="small muted">Efectivo: lo que cobró cada uno en efectivo y debe entregar en caja. Tiempo: promedio desde que sale hasta que entrega.</p>`:'<p class="empty small">Sin domicilios entregados por domiciliarios.</p>'}
+      <div class="cierre" style="margin-top:8px"><div><span class="muted">Pedidos por la carta web</span><span>${D.web.n}</span></div>
+        <div><span class="muted">Pagan en efectivo</span><span>${D.web.ef}</span></div>
+        <div><span class="muted">Rechazados</span><span>${D.web.rech}</span></div>
+        <div><span class="muted">Tiempo promedio en aprobar</span><span>${D.web.tApr?Math.round(D.web.tApr)+' min':'—'}</span></div></div></section>
+    <section class="card"><div class="bar"><h3>Anulaciones</h3><span class="count">${D.anul.length}</span></div>
+      ${D.anul.length?`<p class="small muted">Total anulado: <b>${money(D.anul.reduce((x,o)=>x+total(o),0))}</b></p>`+D.anul.sort((x,y)=>y.anuladoEn-x.anuladoEn).slice(0,12).map(o=>`<div class="pay-row"><span><b>${esc(label(o))} · ${money(total(o))}</b><span class="muted small">${D.porDia?fecha(o.anuladoEn)+' ':''}${hhmm(o.anuladoEn)} · ${esc(o.motivoAnulacion||'Sin motivo')}</span><span class="small">Anuló ${esc(o.anuladoPor||'—')}${o.autorizadoPor&&o.autorizadoPor!==o.anuladoPor?' · autorizó '+esc(o.autorizadoPor):''}</span></span></div>`).join(''):'<p class="empty">Ninguna anulación.</p>'}
     </section>
-    <section class="card"><div class="bar"><h3>Anulaciones del turno</h3><span class="count">${anul.length}</span></div>
-      ${anul.length?anul.map(o=>`<div class="pay-row"><span><b>${esc(label(o))} · ${money(total(o))}</b><span class="muted small">${hhmm(o.anuladoEn)} · ${esc(o.motivoAnulacion||'Sin motivo')}</span><span class="small">Anuló ${esc(o.anuladoPor||'—')}${o.autorizadoPor&&o.autorizadoPor!==o.anuladoPor?' · autorizó '+esc(o.autorizadoPor):''}</span></span></div>`).join(''):'<p class="empty">Ninguna anulación en este turno.</p>'}
-    </section>
-    <section class="card"><h3>Cierre de caja</h3>
+    ${turno?`<section class="card"><h3>Cierre de caja</h3>
       <div class="cierre">
         <div><span class="muted">Base inicial</span><span>${money(S.config.base)}</span></div>
         <div><span class="muted">Ventas en efectivo</span><span>${money(efV)}</span></div>
@@ -1360,9 +1534,26 @@ function vReportes(){
       <label class="field"><span>Efectivo contado en caja</span><input id="contado" inputmode="numeric" placeholder="Ej. 850000" value="${esc(S.contado)}"></label>
       <div id="dif">${difHTML(esperado,contado)}</div>
       <button class="btn dark" data-act="cerrarTurno">Cerrar turno</button>
+    </section>`:''}
+    <section class="card"><div class="bar"><h3>${turno?'Cierres anteriores':'Cierres de caja'}</h3><span class="count">${cierres.length}</span></div>
+      ${cierres.length?`<div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Cierre</th><th class="r">Ventas</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>
+      ${cierres.map(c=>`<tr><td>${fecha(c.hasta)} ${hhmm(c.hasta)}<br><small class="muted">${esc(c.cerradoPor||'')}</small></td><td class="r">${money(c.ventas)}</td><td class="r">${money(c.esperado)}</td><td class="r">${c.contado?money(c.contado):'—'}</td><td class="r">${c.contado?`<span class="pill ${+c.diferencia===0?'ok':+c.diferencia>0?'info':'bad'}">${+c.diferencia>0?'+':''}${money(c.diferencia)}</span>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty small">Aún no hay cierres guardados.</p>'}
     </section>
   </div>`;
 }
+/* resumen para WhatsApp y archivos para Excel */
+function repTexto(){const [,, lab]=rangoRep();const R=ordenesRep();if(!R)return '';const D=calcRep(R);const adm=yo()?.rol==='admin';
+  const top=Object.values(D.P).sort((x,y)=>y.c-x.c).slice(0,5);
+  return [`*${S.config.nombre} · ${lab}*`,`Ventas: ${money(D.v)} (${D.n} cuentas)`,`Ticket promedio: ${money(D.n?D.v/D.n:0)}`,
+    ...(adm?[`Costo según recetas: ${money(D.costo)} · Margen bruto: ${pct(D.margen)}`]:[]),
+    D.prop?`Propinas: ${money(D.prop)}`:'',D.envios?`Domicilios cobrados: ${money(D.envios)}`:'','',
+    '*Medios de pago*',...Object.entries(D.met).sort((x,y)=>y[1]-x[1]).map(([k,x])=>`${MET[k]||k}: ${money(x)}`),'',
+    '*Más vendidos*',...top.map(x=>`${x.c} × ${x.n}`),
+    ...(Object.keys(D.dom).length?['','*Domiciliarios*',...Object.entries(D.dom).map(([k,d])=>`${k}: ${d.n} entregas · efectivo ${money(d.ef)}`)]:[]),
+    D.anul.length?`\nAnulaciones: ${D.anul.length} · ${money(D.anul.reduce((x,o)=>x+total(o),0))}`:''].filter((x,i,arr)=>x!==''||arr[i-1]!=='').join('\n').trim()}
+function csv(filas){return '﻿'+filas.map(r=>r.map(v=>{v=v==null?'':String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(';')).join('\r\n')}
+function descargar(nombre,texto){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([texto],{type:'text/csv;charset=utf-8'}));a.download=nombre;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+
 function difHTML(esp,cont){if(!cont)return '<span class="muted small">Escribe lo que contaste para ver la diferencia.</span>';const d=cont-esp;return d===0?'<span class="pill ok">Cuadra exacto</span>':`<span class="pill ${d>0?'info':'bad'}">${d>0?'Sobran':'Faltan'} ${money(Math.abs(d))}</span>`}
 
 /* ---------- AJUSTES ---------- */
@@ -1427,6 +1618,19 @@ function vConfig(){
       :INSTALAR?'<p class="small muted">Instálala para abrirla desde un ícono, a pantalla completa y sin barra del navegador.</p><button class="btn primary" data-act="instalar">Instalar app</button>'
       :'<p class="small muted">En Android: abre la página publicada en Chrome, toca el menú ⋮ y elige <b>Instalar app</b> (o "Agregar a la pantalla principal"). En la tablet de cocina mantén presionado el ícono para entrar directo a Cocina o Caja.</p>'}
     </section>
+    <section class="card"><h3>Avisos por WhatsApp al cliente</h3>
+      <p class="small muted">En cada pedido con celular aparece el botón <b>📲 Avisar</b> en el momento justo. Un toque abre WhatsApp con el mensaje listo; solo tocas enviar.</p>
+      ${Object.keys(WA_DEF).map(k=>`<div class="wa-cfg"><label class="bar small" style="gap:8px;font-weight:700"><input type="checkbox" data-wa-on="${k}" ${waOn(k)?'checked':''}> ${WA_N[k]}</label>
+        <textarea data-wa="${k}" rows="3" ${waOn(k)?'':'disabled'}>${esc(waTxt(k))}</textarea>${S.config.waTextos&&S.config.waTextos[k]?`<button class="lnk small" data-act="waReset" data-id="${k}">Volver al mensaje original</button>`:''}</div>`).join('')}
+      <p class="small muted">Puedes usar: {nombre} {pedido} {total} {negocio} {domiciliario} {motivo} {link} (seguimiento del pedido) y {cobro} (cuánto pagar en efectivo, si aplica).</p></section>
+    <section class="card"><div class="bar"><h3>Verificación de pagos con IA</h3>${c.iaActiva?'<span class="pill ok">Activa</span>':'<span class="pill">Apagada</span>'}</div>
+      <p class="small muted">Cuando llega un pedido web pagado por Nequi o transferencia, la IA lee la captura y revisa el valor, la fecha, la cuenta que recibió y si ese comprobante ya se usó en otro pedido.</p>
+      ${!con?'<p class="small muted">Disponible cuando el sistema está conectado con Google Sheets.</p>':c.iaActiva?`
+      <label class="bar small" style="gap:8px;font-weight:600"><input type="checkbox" data-cfg="autoAprobarIA" ${+c.autoAprobarIA===1?'checked':''}> Aprobar solos los pagos que cuadran en todo y mandarlos a cocina</label>
+      <p class="small muted">Los que tengan algo raro o que no se pueda leer quedan en Por aprobar para que los revises. Necesita la app abierta en caja o en el equipo del administrador.</p>
+      <button class="btn sm ghost" data-act="iaQuitar" style="align-self:flex-start">Quitar la clave de IA</button>`
+      :`<ol class="small muted pasos-imp"><li>Entra a <b>aistudio.google.com/apikey</b> con tu cuenta de Google.</li><li>Toca <b>Crear clave de API</b> y cópiala.</li><li>Pégala aquí y guarda. Se prueba sola.</li></ol>
+      <form data-form="iaClave" class="row"><input name="clave" type="password" autocomplete="off" placeholder="Clave de Google AI Studio" style="flex:1;min-width:180px;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--surface);color:var(--fg);font:inherit" required><button class="btn primary">Guardar clave</button></form>`}</section>
     <section class="card"><div class="bar"><h3>Impresora de este equipo</h3>${impError?'<span class="pill bad">Con problema</span>':IMP.modo?'<span class="pill ok">Lista</span>':'<span class="pill">Sin configurar</span>'}</div>
       <p class="small muted">Térmica de 58 u 80 mm por Bluetooth (ESC/POS). El equipo que tenga la impresora saca solas las comandas nuevas de cocina y barra, y desde caja imprime la precuenta y el recibo. Se configura en cada equipo; también desde el botón 🖨️ de arriba.</p>
       <button class="btn${IMP.modo?'':' primary'}" data-act="impresora">${IMP.modo?'Ver impresora':'Configurar impresora'}</button></section>
@@ -1493,6 +1697,10 @@ function renderModal(){
       <label class="imp-chk"><input type="checkbox" data-imp="tildes" ${IMP.tildes?'checked':''}> Imprimir tildes y ñ (apágalo si salen símbolos raros)</label>
       <p class="small muted">Con comandas automáticas deja la app abierta en este equipo: imprime las comandas de los meseros, de la carta QR y los pedidos web apenas se aprueban. En la pantalla de Cocina cada comanda tiene <b>Reimprimir</b>.</p></div>
       <button class="btn sm ghost" data-act="impOlvidar" style="align-self:flex-start">Quitar la impresora de este equipo</button>`:''}`}
+  if(M.type==='texto'){h=`${head(esc(M.title))}<textarea class="field" rows="14" readonly style="width:100%;font:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px">${esc(M.text)}</textarea><p class="small muted">Mantén presionado para seleccionar y copiar.</p>`}
+  if(M.type==='avisoWA'){const o=ord(M.oid);if(!o){U.modal=null;return renderModal()}
+    h=`${head('Avisar a '+esc(o.cliente||'el cliente'))}<p class="muted small">${WA_N[M.k]} · WhatsApp ${esc(o.tel)}</p><div class="wa-prev">${esc(waMensaje(o,M.k))}</div>
+    <div class="row"><button class="btn big" data-act="close">No avisar</button><button class="btn primary big wa" data-act="avisarWA" data-id="${o.id}" data-k="${M.k}">📲 Enviar por WhatsApp</button></div>`}
   if(M.type==='nuevoPedido'){
     h=`${head('Nuevo pedido')}<form data-form="pedido" class="panel">
       <div class="radio"><label><input type="radio" name="tipo" value="domicilio" checked> Domicilio</label><label><input type="radio" name="tipo" value="llevar"> Para llevar</label></div>
@@ -1553,7 +1761,7 @@ function renderModal(){
   if(M.type==='comprobante'){const o=ord(M.oid);if(!o){U.modal=null;return renderModal()}const src=CMP[o.id];
     h=`${head('Comprobante · pedido '+o.num)}<div class="cmp">${src&&src.startsWith('data:')?`<img class="cmp-img" src="${src}" alt="Captura del pago de ${esc(o.cliente)}">`:`<p class="empty">${src==='x'?'Este pedido no tiene comprobante guardado.':'Cargando comprobante…'}</p>`}</div>
     <div class="pay-row"><span>${esc(o.cliente)} · ${MET[o.pagoPreferido]||'Transferencia'}</span><b>${money(total(o))}</b></div>
-    <p class="small muted">Revisa que el valor, la fecha y la cuenta de destino coincidan antes de aprobar.</p>
+    ${verifHTML(o)||'<p class="small muted">Revisa que el valor, la fecha y la cuenta de destino coincidan antes de aprobar.</p>'}
     ${o.aprobacion==='pendiente'&&puedeAprobar()?`<div class="row"><button class="btn danger" data-act="rechazar" data-id="${o.id}">Rechazar</button><button class="btn primary" data-act="aprobar" data-id="${o.id}">Aprobar y enviar a cocina</button></div>`:''}`}
   if(M.type==='rechazo'){const o=ord(M.oid);
     h=`${head('Rechazar pedido '+(o?o.num:''))}<p class="muted">El cliente ve este motivo en su seguimiento. El pedido no pasa a cocina.</p>
@@ -1662,12 +1870,17 @@ const ACT={
     render();toast('Cobrado '+money(pagar)+' · '+MET[M.metodo]+(M.metodo==='efectivo'&&rec>pagar?' · cambio '+money(rec-pagar):''));impTrasCobro(o)},
   openOrden:id=>{U.active=id;U.back=U.view==='pedido'?U.back:U.view;U.view='pedido';U.cat='all';U.q='';render()},
   nuevoPedido:()=>{U.modal={type:'nuevoPedido'};renderModal()},
-  aprobar:id=>{const o=ord(id);const u=yo();if(!o)return;if(!puedeAprobar()){toast('Solo caja o el administrador aprueban pagos','bad');return}
-    o.aprobacion='aprobado';o.aprobadoPor=u.nombre;o.tAprobado=now();
-    const n=enviarCocina(o);S.comandas.filter(c=>n.includes(c.num)).forEach(c=>c.origen='web');
-    if(o.pagoPreferido==='efectivo'){save();U.modal=null;render();toast('Pedido '+o.num+' confirmado y en cocina · se cobra en efectivo al entregar');return}
-    o.estado='pagada';o.cobradoPor=u.nombre;o.pago={metodo:o.pagoPreferido||'nequi',total:total(o),propina:0,t:now(),recibido:total(o),ref:'Comprobante web'};
-    save();U.modal=null;render();toast('Pago aprobado · pedido '+o.num+' en cocina')},
+  aprobar:id=>{const o=ord(id);if(!o)return;if(!puedeAprobar()){toast('Solo caja o el administrador aprueban pagos','bad');return}
+    aprobarOrden(o,yo().nombre);U.modal=null;render();
+    toast(o.pagoPreferido==='efectivo'?'Pedido '+o.num+' confirmado y en cocina · se cobra en efectivo al entregar':'Pago aprobado · pedido '+o.num+' en cocina')},
+  reverificar:id=>verificarPago(id,true),
+  avisarWA:(id,el)=>{const o=ord(id);const k=el&&el.dataset.k;if(!o||!k)return;const tel=telWA(o.tel);if(!tel){toast('El cliente no tiene un celular válido','bad');return}
+    window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(waMensaje(o,k)),'_blank','noopener');
+    o.avisos={...(o.avisos&&!Array.isArray(o.avisos)?o.avisos:{}),[k]:now()};save();if(U.modal&&U.modal.type==='avisoWA')U.modal=null;renderModal();render()},
+  waReset:k=>{S.config.waTextos={...(S.config.waTextos||{})};delete S.config.waTextos[k];save();render();toast('Mensaje original restaurado')},
+  iaQuitar:()=>confirmar('Quitar la clave de IA','Los comprobantes dejan de revisarse solos. Puedes volver a poner la clave cuando quieras.','Quitar',async()=>{U.modal=null;renderModal();
+    try{const r=await fetch(API.url,{method:'POST',body:JSON.stringify({token:API.token,action:'iaClave',clave:''})});const j=await r.json();if(!j.ok)throw new Error(j.error);S.config.iaActiva=false;S.config.autoAprobarIA=0;save();render();toast('Clave de IA quitada')}
+    catch(e){toast('No se pudo: '+e.message,'bad')}},true),
   rechazar:id=>{if(!puedeAprobar()){toast('Solo caja o el administrador rechazan pagos','bad');return}U.modal={type:'rechazo',oid:id};renderModal()},
   verComprobante:id=>{const o=ord(id);if(!o)return;U.modal={type:'comprobante',oid:id};renderModal();cargarComprobante(o)},
   salir:id=>{const o=ord(id);const u=yo();if(!o)return;o.entrega='en_camino';o.tSalida=now();o.domiciliario=u?u.nombre:'';cerrarComandas(o);save();render();toast('Vas con el pedido '+o.num+' · '+(o.cliente||''))},
@@ -1723,7 +1936,28 @@ const ACT={
   recGuardar:()=>{const p=prod(U.modal.pid);const m={};U.modal.rec.forEach(([iid,q])=>{q=+q;if(q>0&&S.insumos.some(x=>x.id===iid))m[iid]=(m[iid]||0)+q});
     p.receta=Object.entries(m).map(([iid,q])=>[iid,Math.round(q*1000)/1000]);revisarAgotados();save();U.modal=null;render();toast('Receta guardada · '+p.nombre)},
   disp:id=>{const p=prod(id);p.disp=!p.disp;save();render();toast(p.nombre+(p.disp?' disponible':' marcado como agotado'))},
-  cerrarTurno:()=>confirmar('Cerrar turno','Los reportes y la caja empiezan en cero desde ahora. Las cuentas abiertas siguen abiertas.','Cerrar turno',()=>{S.turno=now();S.contado='';save();U.modal=null;render();toast('Turno cerrado')},true),
+  cerrarTurno:()=>confirmar('Cerrar turno','Se guarda el cierre con lo esperado y lo contado, y la caja empieza en cero desde ahora. Las cuentas abiertas siguen abiertas.','Cerrar turno',()=>{
+    const ps=pagadasTurno(),ef=ps.filter(o=>o.pago.metodo==='efectivo');const efT=ef.reduce((x,o)=>x+o.pago.total+(+o.pago.propina||0),0);
+    const esp=(+S.config.base||0)+efT,cont=+String(S.contado).replace(/\D/g,'');const med={};ps.forEach(o=>med[o.pago.metodo]=(med[o.pago.metodo]||0)+o.pago.total+(+o.pago.propina||0));
+    const c={id:uid('z'),desde:S.turno,hasta:now(),cerradoPor:yo()?.nombre||'',base:+S.config.base||0,ventas:ps.reduce((x,o)=>x+o.pago.total,0),cuentas:ps.length,
+      propinas:ps.reduce((x,o)=>x+(+o.pago.propina||0),0),efectivo:efT,esperado:esp,contado:cont||0,diferencia:cont?cont-esp:0,medios:med,
+      anulaciones:S.ordenes.filter(o=>o.estado==='anulada'&&+o.anuladoEn>=S.turno).length,pend:!!API.url};
+    try{const L=cierresLocales();L.unshift(c);localStorage.setItem(CIERRES_K,JSON.stringify(L.slice(0,60)))}catch(e){}
+    S.turno=now();S.contado='';save();U.modal=null;render();enviarCierres();
+    toast('Turno cerrado'+(cont?' · '+(cont===esp?'cuadró exacto':(cont>esp?'sobraron ':'faltaron ')+money(Math.abs(cont-esp))):''))},true),
+  repRango:id=>{U.rep=id;U.repTodos=false;render()},
+  repOrden:id=>{U.repOrden=id;render()},
+  repTodos:()=>{U.repTodos=!U.repTodos;render()},
+  repRecargar:()=>{REP.key='';REP.error='';render()},
+  repCopiar:async()=>{const t=repTexto();if(!t)return;try{await navigator.clipboard.writeText(t);toast('Resumen copiado. Pégalo en WhatsApp.')}catch(e){U.modal={type:'texto',title:'Resumen',text:t};renderModal()}},
+  repCsv:id=>{const R=ordenesRep();if(!R)return;const [a,,lab]=rangoRep();const nom=(S.config.nombre||'ventas').replace(/[^\wáéíóúñ ]/gi,'').trim().replace(/\s+/g,'-')+'-'+(U.rep==='turno'?'turno':ymd(a));
+    if(id==='detalle'){const f=[['Fecha','Hora','Pedido','Tipo','Canal','Mesa o cliente','Mesero','Producto','Cantidad','Precio','Subtotal','Medio de pago','Propina','Cobró']];
+      R.pag.slice().sort((x,y)=>x.pago.t-y.pago.t).forEach(o=>o.items.forEach((l,i)=>f.push([ymd(o.pago.t),hhmm(o.pago.t),o.num,{mesa:'Mesa',domicilio:'Domicilio',llevar:'Para llevar'}[o.tipo]||o.tipo,o.canal||'',o.tipo==='mesa'?label(o):o.cliente||'',o.mesero||'',l.nombre,l.cant,l.precio,l.precio*l.cant,MET[o.pago.metodo]||o.pago.metodo,i?'':(+o.pago.propina||0),o.cobradoPor||''])));
+      descargar(nom+'-ventas.csv',csv(f))}
+    else{const D=calcRep(R),fi=1+(+S.config.impoconsumo||0)/100;const f=[['Producto','Categoría','Cantidad','Ventas','Costo según receta','Margen %']];
+      Object.values(D.P).sort((x,y)=>y.v-x.v).forEach(x=>{const n=x.v/fi;f.push([x.n,S.cats.find(c=>c.id===x.cat)?.n||'',x.c,x.v,x.sin?'':Math.round(x.co),x.sin||!n?'':Math.round((n-x.co)/n*100)])});
+      descargar(nom+'-productos.csv',csv(f))}
+    toast('Archivo descargado · ábrelo con Excel')},
   addMesa:z=>{const n=S.mesas.filter(m=>m.zona===z).length+1;const pre=z==='Terraza'?'T':z==='Salón'?'':z[0].toUpperCase();let nombre=pre+n;while(S.mesas.some(m=>m.nombre===nombre))nombre=pre+(+String(nombre).replace(/\D/g,'')+1);
     S.mesas.push({id:uid('m'),nombre,zona:z,sillas:4});save();render()},
   delMesa:id=>{if(ordenMesa(id)){toast('No se puede quitar una mesa con cuenta abierta','bad');return}S.mesas=S.mesas.filter(m=>m.id!==id);save();render()},
@@ -1743,7 +1977,7 @@ function selectText(){const el=document.getElementById('msgTxt');const r=documen
 const FORMS={
   rechazo:fd=>{const o=ord(U.modal.oid);const u=yo();const motivo=String(fd.get('motivo')||'').trim();if(!o)return;if(!motivo){toast('Escribe el motivo para el cliente','bad');return}
     o.aprobacion='rechazado';o.motivoRechazo=motivo;o.estado='anulada';o.anuladoPor=u?.nombre||'';o.autorizadoPor=u?.nombre||'';o.motivoAnulacion='Pago rechazado: '+motivo;o.anuladoEn=now();
-    save();U.modal=null;render();toast('Pedido '+o.num+' rechazado · el cliente ve el motivo')},
+    save();U.modal=avisoPend(o)==='rechazado'?{type:'avisoWA',oid:o.id,k:'rechazado'}:null;render();renderModal();toast('Pedido '+o.num+' rechazado · el cliente ve el motivo')},
   nota:fd=>{const l=ord(U.active).items.find(x=>x.id===U.modal.lid);l.nota=String(fd.get('nota')).trim();U.modal=null;save();render()},
   pedido:fd=>{const tipo=fd.get('tipo');const z=S.config.zonas[+fd.get('zona')||0];
     if(tipo==='domicilio'&&!String(fd.get('direccion')).trim()){toast('Escribe la dirección de entrega','bad');return}
@@ -1785,6 +2019,10 @@ const FORMS={
       MOVS=[];SNAP=null;NET='';setNet('ok');aplicar(j.state);toast('Conectado a '+(j.state.config.nombre||'tu hoja'));
     }catch(e){toast('No se pudo conectar: '+(e.message&&e.message!=='Failed to fetch'?e.message:'revisa la URL, la clave y que la app esté publicada para cualquier usuario'),'bad')}
   },
+  iaClave:async fd=>{const clave=String(fd.get('clave')||'').trim();if(!clave)return;toast('Probando la clave…');
+    try{const r=await fetch(API.url,{method:'POST',body:JSON.stringify({token:API.token,action:'iaClave',clave})});const j=await r.json();if(!j.ok)throw new Error(j.error);
+      S.config.iaActiva=true;render();toast('Verificación con IA activada');verificarPendientes()}
+    catch(e){toast('No funcionó esa clave: '+(e.message||e),'bad')}},
   mesero:fd=>{const n=String(fd.get('n')).trim();if(!n)return;if(S.meseros.includes(n)){toast('Ese mesero ya existe','bad');return}S.meseros.push(n);save();render()}
 };
 document.addEventListener('click',e=>{
@@ -1804,6 +2042,7 @@ document.addEventListener('input',e=>{
   if(t.dataset.rec&&U.modal&&U.modal.type==='receta'){const [k,f]=t.dataset.rec.split(':');const r=U.modal.rec[+k];if(r){if(f==='q')r[1]=t.value;else{r[0]=t.value;renderModal();return}}
     const p=prod(U.modal.pid);const base=p.precio/(1+S.config.impoconsumo/100);const c=U.modal.rec.reduce((a,[iid,q])=>{const i=S.insumos.find(x=>x.id===iid);return a+(i?i.costo*(+q||0):0)},0);const pc=base?c/base*100:0;
     const el=document.getElementById('recCosto');if(el)el.innerHTML=`<span>Costo ${money(c)} · precio sin impuesto ${money(base)}</span><b>${c?`<span class="pill ${pc<35?'ok':pc<45?'warn':'bad'}">${pc.toFixed(0)}%</span>`:''}</b>`}
+  if(t.dataset.wa){S.config.waTextos={...(S.config.waTextos||{}),[t.dataset.wa]:t.value};save()}
   if(t.dataset.tramo){const [i,k]=t.dataset.tramo.split(':');const x=S.config.tramos[+i];if(x){x[k]=+t.value||0;S.config.tramos.sort((a,b)=>a.km-b.km);save()}}
   if(t.dataset.opc&&t.type!=='checkbox'){const [i,k]=t.dataset.opc.split(':');const g=S.config.opciones[+i];if(g){if(k==='n')g.n=t.value;if(k==='items')g.items=t.value.split(',').map(x=>x.trim()).filter(Boolean);save()}}
   if(t.dataset.cfg){const k=t.dataset.cfg;S.config[k]=t.type==='checkbox'?(t.checked?1:0):t.type==='number'?(+t.value||0):t.value;save();if(k==='nombre')document.getElementById('brandSub').textContent=t.value}
@@ -1813,6 +2052,8 @@ document.addEventListener('change',e=>{
   if(t.id==='selMesero'){ord(U.active).mesero=t.value;save()}
   if(t.id==='qrMesa'){U.qrMesa=t.value;U.qrCart=[];render()}
   if(t.id==='recCat'){U.recCat=t.value;render()}
+  if(t.dataset.waOn){const k=t.dataset.waOn;const a=new Set(Array.isArray(S.config.waApagados)?S.config.waApagados:[]);t.checked?a.delete(k):a.add(k);S.config.waApagados=[...a];save();render()}
+  if(t.id==='repDesde'||t.id==='repHasta'){U[t.id]=t.value;render()}
   if(t.id==='recSin'){U.recSin=t.checked;render()}
   if(t.id==='recCopiar'&&t.value&&U.modal&&U.modal.type==='receta'){const o=prod(t.value);if(o){U.modal.rec=o.receta.map(r=>[r[0],r[1]]);renderModal();toast('Receta copiada de '+o.nombre+'. Ajusta y guarda.')}}
   if(t.id==='insUnidad'&&U.modal&&U.modal.type==='insumo'&&!U.modal.iid){U.modal.u=t.value;const f=t.closest('form');const keep={nombre:f.nombre.value};renderModal();const nf=document.querySelector('form[data-form=insumo]');if(nf)nf.nombre.value=keep.nombre}
