@@ -252,7 +252,10 @@ function ingDe(desc){
 const extrasDe=p=>{const c=st.menu.extras;if(!c||!p||p.cat===c||p.est==='barra')return[];return st.menu.productos.filter(x=>x.cat===c)};
 // Grupos de la carta (salsas, vegetales…) que aplican a la categoría del plato. "+Nombre" = se puede poner, no viene incluido
 const gruposDe=p=>(st.menu.opciones||[]).filter(g=>g&&(g.cats||[]).includes(p.cat)).map(g=>({n:g.n,items:(g.items||[]).map(x=>String(x).trim()).filter(Boolean).map(x=>x[0]==='+'?{n:x.slice(1).trim(),base:false}:{n:x,base:true})})).filter(g=>g.items.length);
-const tieneOpc=p=>ingDe(p.desc).length>0||extrasDe(p).length>0||gruposDe(p).length>0;
+// Si el plato tiene receta, sus ingredientes salen del inventario (cond); si no, de la descripción y los grupos
+const ingP=p=>p.cond?p.cond.base:ingDe(p.desc);
+const gruposP=p=>p.cond?(p.cond.extra.length?[{n:'Agrégale sin costo',items:p.cond.extra.map(n=>({n,base:false}))}]:[]):gruposDe(p);
+const tieneOpc=p=>ingP(p).length>0||extrasDe(p).length>0||gruposP(p).length>0;
 const unit=l=>{const p=prod(l.pid);return p?p.precio+l.ext.reduce((a,id)=>a+(prod(id)?.precio||0),0):0};
 const minus=x=>/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(x)?x[0].toLowerCase()+x.slice(1):x;
 const modsTxt=l=>[l.sin.length?'Sin '+l.sin.map(minus).join(', '):'',(l.con||[]).length?'Con '+l.con.map(minus).join(', '):'',...l.ext.map(id=>'+ '+(prod(id)?.nombre||'')),(l.nota||'').trim()].filter(Boolean).join(' · ');
@@ -350,7 +353,7 @@ function vMenu(){
 }
 function sheetHTML(){
   const s=st.sheet;if(!s||!st.menu)return '';const p=prod(s.pid);if(!p)return '';
-  const ing=ingDe(p.desc),ex=extrasDe(p),gs=gruposDe(p);const u=unit(s);
+  const ing=ingP(p),ex=extrasDe(p),gs=gruposP(p);const u=unit(s);
   return `<div class="sh-head"><div><h2>${esc(p.nombre)}</h2><span class="pr">${money(p.precio)}</span></div><button class="x" data-a="cerrarOpc" aria-label="Cerrar">×</button></div>
     <div class="sh-body" id="shBody">
       ${ing.length?`<div><h3>Ingredientes</h3><p class="small muted">Toca lo que no quieras para quitarlo.</p></div><div class="ings">${ing.map(x=>{const off=s.sin.includes(x);return `<button class="ing ${off?'off':''}" data-a="tSin" data-v="${esc(x)}" aria-pressed="${!off}"><span class="ck">${off?'✕':'✓'}</span>${esc(x)}</button>`}).join('')}</div>`:''}
