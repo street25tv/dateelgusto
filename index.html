@@ -266,7 +266,14 @@ td.acts{white-space:nowrap}td.acts .btn+.btn{margin-left:6px}
 .lnk{border:0;background:none;padding:0;color:inherit;cursor:pointer;font:inherit;text-align:left}
 .lnk:hover b{text-decoration:underline}
 .rec{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto;padding:2px}
-.rec-r{display:grid;grid-template-columns:minmax(0,1fr) 90px 34px 34px;gap:6px;align-items:center}
+.rec-r{display:grid;grid-template-columns:minmax(0,1fr) 76px 30px auto 34px;gap:6px;align-items:center}
+.rq{display:flex;align-items:center;gap:4px;font-size:.78rem;font-weight:600;border:1px dashed var(--line);border-radius:999px;padding:5px 9px;white-space:nowrap;cursor:pointer;color:var(--muted)}
+.rq.on{border-style:solid;border-color:var(--accent,#1f6f4a);color:var(--fg)}
+.rq input{margin:0}
+.pl-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pl-h{display:flex;flex-direction:column;gap:2px;margin:14px 0 6px}
+@media(max-width:520px){.rec{max-height:none;flex:none;overflow:visible}.pl-2{grid-template-columns:1fr}.rec-r{grid-template-columns:minmax(0,1fr) 64px 26px 34px}.rec-r .rq{grid-column:1/-1;justify-self:start;order:9}}
+.ing .q{text-decoration:underline dotted;text-underline-offset:3px}
 .rec-r select,.rec-r input,#recCat,#recCopiar{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:8px;font:inherit;min-width:0}
 .rec-r .u{font-size:.8rem;color:var(--muted)}
 #invQ,#recQ{width:100%;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 12px;font:inherit}
@@ -965,11 +972,14 @@ function addItem(o,pid,cant=1,nota=''){const p=prod(pid);if(!p||!p.disp)return;c
    Lo que se quita no se descuenta del inventario; lo que se pone sí. Lo que se agrega con costo son los adicionales. */
 const OPC_INS=Object.fromEntries((INV_SUGERIDO.insumos||[]).map(i=>[i.id,i.opc||'']));
 const insOpc=i=>i.opc||OPC_INS[i.id]||'';
+// Cada fila de la receta puede traer r[2]=1 (se puede quitar) o 0 (va siempre). Sin ese dato decide el insumo.
+const quitable=(r,i)=>r[2]!==undefined&&r[2]!==null&&r[2]!==''?+r[2]===1:['q','qp'].includes(insOpc(i));
+const filaRec=r=>{const i=S.insumos.find(x=>x.id===r[0]);return [r[0],r[1],i&&quitable(r,i)?1:0]};
 const catAdic=()=>S.config.catExtras===undefined?'adic':String(S.config.catExtras||'');
 function condDe(p){
   if(!p||!p.receta||!p.receta.length||p.est!=='cocina'||p.cat===catAdic())return{base:[],extra:[]};
   const ids=p.receta.map(r=>r[0]);
-  const base=ids.map(id=>S.insumos.find(i=>i.id===id)).filter(i=>i&&['q','qp'].includes(insOpc(i)));
+  const base=p.receta.filter(r=>{const i=S.insumos.find(x=>x.id===r[0]);return i&&quitable(r,i)}).map(r=>S.insumos.find(x=>x.id===r[0]));
   if(!base.length)return{base:[],extra:[]};
   return{base,extra:S.insumos.filter(i=>insOpc(i)==='qp'&&!ids.includes(i.id))};
 }
@@ -1390,7 +1400,7 @@ function vReservas(){
 
 /* ---------- INVENTARIO ---------- */
 function vInventario(){
-  const tabs=`<div class="seg">${[['insumos','Insumos'],['recetas','Recetas y costos']].map(([k,n])=>`<button class="${U.invTab===k?'on':''}" data-act="invTab" data-id="${k}">${n}</button>`).join('')}</div>`;
+  const tabs=`<div class="seg">${[['insumos','Insumos'],['recetas','Platos y recetas']].map(([k,n])=>`<button class="${U.invTab===k?'on':''}" data-act="invTab" data-id="${k}">${n}</button>`).join('')}</div>`;
   const auto=+S.config.autoAgotar===1;const enAuto=listaAuto();
   const sugerido=!S.insumos.length&&INV_SUGERIDO.insumos.length;
   if(U.invTab==='insumos'){
@@ -1414,12 +1424,12 @@ function vInventario(){
   const con=S.productos.filter(p=>p.receta.length).length;
   return `<div class="bar">${tabs}<span class="muted small">${con} de ${S.productos.length} platos con receta · costo sugerido por debajo del 35% del precio</span></div>
   ${sugerido?`<div class="card sug"><div><b>Carga primero el inventario sugerido</b><p class="small muted" style="margin:4px 0 0">Trae los insumos y una receta para cada plato.</p></div><button class="btn primary" data-act="invSugerido">Cargar insumos y recetas</button></div>`:''}
-  <div class="bar"><input class="search" id="recQ" placeholder="Buscar plato" value="${esc(U.recQ||'')}" aria-label="Buscar plato" style="flex:1;min-width:160px">
+  <div class="bar"><button class="btn primary" data-act="platoNuevo">+ Nuevo plato</button><input class="search" id="recQ" placeholder="Buscar plato" value="${esc(U.recQ||'')}" aria-label="Buscar plato" style="flex:1;min-width:160px">
     <select id="recCat" aria-label="Categoría"><option value="">Todas las categorías</option>${S.cats.map(k=>`<option value="${esc(k.id)}" ${cf===k.id?'selected':''}>${esc(k.n)}</option>`).join('')}</select>
     <label class="small" style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" id="recSin" ${sin?'checked':''}> Solo sin receta</label></div>
   <div class="tbl-wrap"><table><thead><tr><th>Plato</th><th class="r">Precio</th><th class="r">Costo receta</th><th class="r">% costo</th><th class="r">Margen</th><th>Disponible</th></tr></thead><tbody>
   ${ps.map(p=>{const base=p.precio/(1+S.config.impoconsumo/100);const c=costoReceta(p);const pc=base?c/base*100:0;const ag=enAuto.includes(p.id);
-    return `<tr><td><button class="lnk" data-act="recetaEditar" data-id="${p.id}"><b>${esc(p.nombre)}</b></button>${ag?' <span class="pill bad">Sin insumos</span>':''}<div class="ing">${p.receta.length?p.receta.map(([iid,q])=>{const i=S.insumos.find(x=>x.id===iid);return i?esc(i.nombre)+' '+fmtQty(q,i.unidad):''}).join(' · '):'<span style="color:var(--warn)">Sin receta · toca el nombre para armarla</span>'}</div></td>
+    return `<tr><td><button class="lnk" data-act="recetaEditar" data-id="${p.id}"><b>${esc(p.nombre)}</b></button>${ag?' <span class="pill bad">Sin insumos</span>':''}<div class="ing">${p.receta.length?p.receta.map(r=>{const i=S.insumos.find(x=>x.id===r[0]);return i?(quitable(r,i)&&p.est==='cocina'?'<span class="q" title="El cliente lo puede quitar">'+esc(i.nombre)+'</span>':esc(i.nombre))+' '+fmtQty(r[1],i.unidad):''}).join(' · '):'<span style="color:var(--warn)">Sin receta · toca el nombre para armarla</span>'}</div></td>
     <td class="r">${money(p.precio)}</td><td class="r">${c?money(c):'—'}</td><td class="r">${c?`<span class="pill ${pc<35?'ok':pc<45?'warn':'bad'}">${pc.toFixed(0)}%</span>`:'—'}</td><td class="r">${c?money(base-c):'—'}</td>
     <td><button class="switch ${p.disp?'on':''}" data-act="disp" data-id="${p.id}" role="switch" aria-checked="${p.disp}" aria-label="Disponible ${esc(p.nombre)}"></button></td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No hay platos con ese filtro.</td></tr>'}
   </tbody></table></div>`;
@@ -1744,7 +1754,7 @@ function renderModal(){
     ${c.base.length?`<div class="per-h"><b>Ingredientes</b><span class="small muted">Toca para quitar</span></div><div class="ichs">${c.base.map(i=>chip('perSin',i.nombre,M.sin.includes(i.nombre)?'off':'',i.nombre)).join('')}</div>`:''}
     ${c.extra.length?`<div class="per-h"><b>Poner sin costo</b></div><div class="ichs">${c.extra.map(i=>chip('perCon',i.nombre,M.con.includes(i.nombre)?'on':'opt',i.nombre)).join('')}</div>`:''}
     ${ads.length?`<div class="per-h"><b>Adicionales</b><span class="small muted">Suman al precio</span></div><div class="ichs">${ads.map(a=>chip('perExt',a.id,M.ext.includes(a.nombre)?'on':'opt',a.nombre,` <b class="ich-p">+${money(a.precio)}</b>`)).join('')}</div>`:''}
-    ${!c.base.length&&p.receta.length===0?'<p class="small muted">Este plato aún no tiene receta. Cárgala en Inventario › Recetas y costos para ver sus ingredientes.</p>':''}
+    ${!c.base.length&&p.receta.length===0?'<p class="small muted">Este plato aún no tiene receta. Ármala en Inventario › Platos y recetas para ver sus ingredientes.</p>':''}
     <div class="per-sum">${esc(modsTxt(M)||'Como viene en la carta')}</div>
     <div class="row"><button class="btn" data-act="perLimpiar">Como viene</button><button class="btn primary big" data-act="perGuardar" style="flex:1">Guardar · ${money(pu*l.cant)}</button></div>`}
   if(M.type==='nuevoPedido'){
@@ -1787,15 +1797,25 @@ function renderModal(){
       ${i?'':`<label class="field"><span>Existencia actual (${ug})</span><input name="stock" type="number" min="0" step="any" inputmode="decimal" placeholder="0"></label>`}
       <p class="small muted">Cuando la existencia baja del mínimo, el insumo sale en la lista de compras.${i?' Para cambiar la existencia usa "Contar" o "+ Entrada".':''}</p>
       <div class="row">${i?`<button type="button" class="btn danger" data-act="insumoBorrar" data-id="${i.id}" ${usos?`title="Lo usan ${usos} recetas"`:''}>Eliminar</button>`:''}<button class="btn primary big" style="flex:1">${i?'Guardar':'Crear insumo'}</button></div></form>`}
-  if(M.type==='receta'){const p=prod(M.pid);const base=p.precio/(1+S.config.impoconsumo/100);
+  if(M.type==='receta'){const p=M.pid?prod(M.pid):null;const D=M.d;const base=(+D.precio||0)/(1+S.config.impoconsumo/100);
     const c=M.rec.reduce((a,[iid,q])=>{const i=S.insumos.find(x=>x.id===iid);return a+(i?i.costo*(+q||0):0)},0);const pc=base?c/base*100:0;
-    h=`${head('Receta · '+p.nombre)}<p class="muted small">Lo que lleva <b>una</b> unidad del plato. Cada venta descuenta estas cantidades del inventario.</p>
-      <div class="rec">${M.rec.map(([iid,q],k)=>{const i=S.insumos.find(x=>x.id===iid);return `<div class="rec-r"><select data-rec="${k}:i" aria-label="Insumo">${S.insumos.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(x=>`<option value="${x.id}" ${x.id===iid?'selected':''}>${esc(x.nombre)}</option>`).join('')}</select>
-        <input type="number" min="0" step="any" inputmode="decimal" data-rec="${k}:q" value="${q}" aria-label="Cantidad"><span class="u">${i?i.unidad:''}</span><button class="btn sm ghost" data-act="recQuitar" data-id="${k}" aria-label="Quitar">×</button></div>`}).join('')||'<p class="empty">Sin insumos todavía.</p>'}</div>
+    const fld=(k,lab,inp)=>`<label class="field"><span>${lab}</span>${inp}</label>`;
+    h=`${head(p?esc(p.nombre):'Nuevo plato')}
+      <div class="pl-2">${fld('nombre','Nombre',`<input data-pl="nombre" value="${esc(D.nombre)}" placeholder="Ej. Perro especial" maxlength="60">`)}
+        ${fld('precio','Precio de venta',`<input data-pl="precio" type="number" min="0" step="100" inputmode="numeric" value="${esc(D.precio)}" placeholder="0">`)}</div>
+      <div class="pl-2">${fld('cat','Categoría',`<select data-pl="cat">${S.cats.map(k=>`<option value="${esc(k.id)}" ${D.cat===k.id?'selected':''}>${esc(k.n)}</option>`).join('')}</select>`)}
+        ${fld('est','Se prepara en',`<select data-pl="est">${[['cocina','Cocina'],['barra','Barra']].map(([v,n])=>`<option value="${v}" ${D.est===v?'selected':''}>${n}</option>`).join('')}</select>`)}</div>
+      ${fld('desc','Descripción para el cliente',`<input data-pl="desc" value="${esc(D.desc)}" placeholder="Ej. Salchicha americana, papita triturada y queso costeño" maxlength="140">`)}
+      <div class="pl-h"><b>Ingredientes</b><span class="small muted">Lo que lleva una unidad. Cada venta lo descuenta del inventario.</span></div>
+      ${D.est==='cocina'&&D.cat!==catAdic()?'<p class="small muted" style="margin:0 0 8px">Marca <b>Se quita</b> en lo que el cliente puede pedir sin (salsas, vegetales, quesos…). Lo que no marques va siempre en el plato.</p>':''}
+      <div class="rec">${M.rec.map(([iid,q,x],k)=>{const i=S.insumos.find(y=>y.id===iid);return `<div class="rec-r"><select data-rec="${k}:i" aria-label="Insumo">${S.insumos.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(y=>`<option value="${y.id}" ${y.id===iid?'selected':''}>${esc(y.nombre)}</option>`).join('')}</select>
+        <input type="number" min="0" step="any" inputmode="decimal" data-rec="${k}:q" value="${q}" aria-label="Cantidad"><span class="u">${i?i.unidad:''}</span>
+        ${D.est==='cocina'&&D.cat!==catAdic()?`<label class="rq ${x?'on':''}"><input type="checkbox" data-rec="${k}:x" ${x?'checked':''}> Se quita</label>`:'<span></span>'}
+        <button class="btn sm ghost" data-act="recQuitar" data-id="${k}" aria-label="Quitar">×</button></div>`}).join('')||'<p class="empty">Sin ingredientes todavía.</p>'}</div>
       <div class="row">${S.insumos.length?'<button class="btn sm" data-act="recAgregar">+ Agregar insumo</button>':'<span class="small muted">Primero crea insumos en la pestaña Insumos.</span>'}
-        <select id="recCopiar" aria-label="Copiar receta de otro plato" style="flex:1;min-width:0"><option value="">Copiar receta de otro plato…</option>${S.productos.filter(x=>x.id!==p.id&&x.receta.length).map(x=>`<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select></div>
+        <select id="recCopiar" aria-label="Copiar receta de otro plato" style="flex:1;min-width:0"><option value="">Copiar receta de otro plato…</option>${S.productos.filter(x=>x.id!==M.pid&&x.receta.length).map(x=>`<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select></div>
       <div class="pay-row" id="recCosto"><span>Costo ${money(c)} · precio sin impuesto ${money(base)}</span><b>${c?`<span class="pill ${pc<35?'ok':pc<45?'warn':'bad'}">${pc.toFixed(0)}%</span>`:''}</b></div>
-      <div class="row"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="recGuardar" style="flex:1">Guardar receta</button></div>`}
+      <div class="row">${p?`<button class="btn danger" data-act="platoBorrar" data-id="${p.id}">Eliminar</button>`:'<button class="btn" data-act="close">Cancelar</button>'}<button class="btn primary" data-act="recGuardar" style="flex:1">${p?'Guardar plato':'Crear plato'}</button></div>`}
   if(M.type==='anular'){const o=ord(M.oid);const u=yo();
     h=`${head('Anular pedido')}<p class="muted">${esc(label(o))} · ${money(total(o))}. Las comandas salen de cocina y la anulación queda en el reporte con tu nombre.</p>
     <form data-form="anular" class="panel"><label class="field"><span>Motivo</span><input name="motivo" id="motivoTxt" required placeholder="Escribe o elige un motivo"></label>
@@ -1986,11 +2006,24 @@ const ACT={
     S.insumos=INV_SUGERIDO.insumos.map(i=>({...i,stock:0}));let n=0;
     S.productos.forEach(p=>{const r=INV_SUGERIDO.recetas[p.id];if(r&&!p.receta.length){p.receta=r.map(x=>[x[0],x[1]]);n++}});
     save();render();toast(S.insumos.length+' insumos y '+n+' recetas cargados. Ahora haz el conteo inicial.')},
-  recetaEditar:id=>{const p=prod(id);U.modal={type:'receta',pid:id,rec:p.receta.map(r=>[r[0],r[1]])};renderModal()},
-  recAgregar:()=>{const usados=U.modal.rec.map(r=>r[0]);const i=S.insumos.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).find(x=>!usados.includes(x.id))||S.insumos[0];U.modal.rec.push([i.id,i.unidad==='und'?1:50]);renderModal()},
+  recetaEditar:id=>{const p=prod(id);U.modal={type:'receta',pid:id,d:{nombre:p.nombre,precio:p.precio,cat:p.cat,est:p.est||'cocina',desc:p.desc||''},rec:p.receta.map(filaRec)};renderModal()},
+  platoNuevo:()=>{U.modal={type:'receta',pid:null,d:{nombre:'',precio:'',cat:U.recCat||(S.cats[0]||{}).id||'',est:'cocina',desc:''},rec:[]};renderModal()},
+  platoBorrar:id=>{const p=prod(id);if(!p)return;const abiertas=S.ordenes.some(o=>o.estado!=='pagada'&&o.estado!=='anulada'&&o.items.some(l=>l.pid===id));
+    if(abiertas){toast('No se puede: '+p.nombre+' está en una cuenta abierta. Márcalo como no disponible.','bad');return}
+    U.modal={type:'confirm',title:'¿Eliminar '+p.nombre+'?',text:'Sale de la carta y de los pedidos nuevos. Las ventas pasadas no cambian. Si solo se acabó, mejor apaga "Disponible".',ok:'Eliminar plato',danger:true,
+      fn:()=>{S.productos=S.productos.filter(x=>x.id!==id);save();U.modal=null;render();toast(p.nombre+' eliminado')}};renderModal()},
+  recAgregar:()=>{const usados=U.modal.rec.map(r=>r[0]);const i=S.insumos.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).find(x=>!usados.includes(x.id))||S.insumos[0];U.modal.rec.push(filaRec([i.id,i.unidad==='und'?1:50]));renderModal()},
   recQuitar:k=>{U.modal.rec.splice(+k,1);renderModal()},
-  recGuardar:()=>{const p=prod(U.modal.pid);const m={};U.modal.rec.forEach(([iid,q])=>{q=+q;if(q>0&&S.insumos.some(x=>x.id===iid))m[iid]=(m[iid]||0)+q});
-    p.receta=Object.entries(m).map(([iid,q])=>[iid,Math.round(q*1000)/1000]);revisarAgotados();save();U.modal=null;render();toast('Receta guardada · '+p.nombre)},
+  recGuardar:()=>{const M=U.modal,D=M.d;const nombre=String(D.nombre||'').trim().replace(/\s+/g,' ');const precio=Math.round(+D.precio||0);
+    if(!nombre){toast('Escribe el nombre del plato','bad');return}
+    if(!(precio>0)){toast('Escribe el precio de venta','bad');return}
+    if(S.productos.some(x=>x.id!==M.pid&&nrm(x.nombre)===nrm(nombre))){toast('Ya hay un plato llamado '+nombre,'bad');return}
+    const m={},fl={};M.rec.forEach(([iid,q,x])=>{q=+q;if(q>0&&S.insumos.some(y=>y.id===iid)){m[iid]=(m[iid]||0)+q;fl[iid]=fl[iid]||(x?1:0)}});
+    const receta=Object.entries(m).map(([iid,q])=>[iid,Math.round(q*1000)/1000,fl[iid]]);
+    let p=M.pid?prod(M.pid):null;
+    if(!p){p={id:uid('p'),disp:true};S.productos.push(p)}
+    Object.assign(p,{nombre,precio,cat:D.cat,est:D.est,desc:String(D.desc||'').trim(),receta});
+    revisarAgotados();save();U.modal=null;render();toast((M.pid?'Plato guardado · ':'Plato creado · ')+p.nombre)},
   disp:id=>{const p=prod(id);p.disp=!p.disp;save();render();toast(p.nombre+(p.disp?' disponible':' marcado como agotado'))},
   cerrarTurno:()=>confirmar('Cerrar turno','Se guarda el cierre con lo esperado y lo contado, y la caja empieza en cero desde ahora. Las cuentas abiertas siguen abiertas.','Cerrar turno',()=>{
     const ps=pagadasTurno(),ef=ps.filter(o=>o.pago.metodo==='efectivo');const efT=ef.reduce((x,o)=>x+o.pago.total+(+o.pago.propina||0),0);
@@ -2096,8 +2129,9 @@ document.addEventListener('input',e=>{
   if(t.id==='contado'){S.contado=t.value;save();const ps=pagadasTurno().filter(o=>o.pago.metodo==='efectivo');const esp=S.config.base+ps.reduce((a,o)=>a+o.pago.total+o.pago.propina,0);document.getElementById('dif').innerHTML=difHTML(esp,+t.value.replace(/\D/g,''))}
   if(t.id==='invQ'){U.invQ=t.value;const y=scrollY;render();const q=document.getElementById('invQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}scrollTo(0,y)}
   if(t.id==='recQ'){U.recQ=t.value;const y=scrollY;render();const q=document.getElementById('recQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}scrollTo(0,y)}
-  if(t.dataset.rec&&U.modal&&U.modal.type==='receta'){const [k,f]=t.dataset.rec.split(':');const r=U.modal.rec[+k];if(r){if(f==='q')r[1]=t.value;else{r[0]=t.value;renderModal();return}}
-    const p=prod(U.modal.pid);const base=p.precio/(1+S.config.impoconsumo/100);const c=U.modal.rec.reduce((a,[iid,q])=>{const i=S.insumos.find(x=>x.id===iid);return a+(i?i.costo*(+q||0):0)},0);const pc=base?c/base*100:0;
+  if(t.dataset.pl&&U.modal&&U.modal.type==='receta'){const k=t.dataset.pl;U.modal.d[k]=t.value;if(k==='cat'||k==='est'){renderModal();return}if(k!=='precio')return}
+  if((t.dataset.rec||t.dataset.pl)&&U.modal&&U.modal.type==='receta'){if(t.dataset.rec){const [k,f]=t.dataset.rec.split(':');const r=U.modal.rec[+k];if(r){if(f==='x'){r[2]=t.checked?1:0;t.closest('.rq')?.classList.toggle('on',t.checked);return}if(f==='q')r[1]=t.value;else{U.modal.rec[+k]=filaRec([t.value,r[1]]);renderModal();return}}}
+    const base=(+U.modal.d.precio||0)/(1+S.config.impoconsumo/100);const c=U.modal.rec.reduce((a,[iid,q])=>{const i=S.insumos.find(x=>x.id===iid);return a+(i?i.costo*(+q||0):0)},0);const pc=base?c/base*100:0;
     const el=document.getElementById('recCosto');if(el)el.innerHTML=`<span>Costo ${money(c)} · precio sin impuesto ${money(base)}</span><b>${c?`<span class="pill ${pc<35?'ok':pc<45?'warn':'bad'}">${pc.toFixed(0)}%</span>`:''}</b>`}
   if(t.dataset.wa){S.config.waTextos={...(S.config.waTextos||{}),[t.dataset.wa]:t.value};save()}
   if(t.dataset.tramo){const [i,k]=t.dataset.tramo.split(':');const x=S.config.tramos[+i];if(x){x[k]=+t.value||0;S.config.tramos.sort((a,b)=>a.km-b.km);save()}}
@@ -2112,7 +2146,7 @@ document.addEventListener('change',e=>{
   if(t.dataset.waOn){const k=t.dataset.waOn;const a=new Set(Array.isArray(S.config.waApagados)?S.config.waApagados:[]);t.checked?a.delete(k):a.add(k);S.config.waApagados=[...a];save();render()}
   if(t.id==='repDesde'||t.id==='repHasta'){U[t.id]=t.value;render()}
   if(t.id==='recSin'){U.recSin=t.checked;render()}
-  if(t.id==='recCopiar'&&t.value&&U.modal&&U.modal.type==='receta'){const o=prod(t.value);if(o){U.modal.rec=o.receta.map(r=>[r[0],r[1]]);renderModal();toast('Receta copiada de '+o.nombre+'. Ajusta y guarda.')}}
+  if(t.id==='recCopiar'&&t.value&&U.modal&&U.modal.type==='receta'){const o=prod(t.value);if(o){U.modal.rec=o.receta.map(filaRec);renderModal();toast('Receta copiada de '+o.nombre+'. Ajusta y guarda.')}}
   if(t.id==='insUnidad'&&U.modal&&U.modal.type==='insumo'&&!U.modal.iid){U.modal.u=t.value;const f=t.closest('form');const keep={nombre:f.nombre.value};renderModal();const nf=document.querySelector('form[data-form=insumo]');if(nf)nf.nombre.value=keep.nombre}
   if(t.dataset.opc&&t.type==='checkbox'){const [i,,cat]=t.dataset.opc.split(':');const g=S.config.opciones[+i];if(g){g.cats=t.checked?[...new Set([...(g.cats||[]),cat])]:(g.cats||[]).filter(x=>x!==cat);t.closest('.chip')?.classList.toggle('on',t.checked);save()}}
   if(t.dataset.imp){const k=t.dataset.imp;IMP[k]=t.type==='checkbox'?(t.checked?1:0):['ancho','copias'].includes(k)?+t.value:t.value;
