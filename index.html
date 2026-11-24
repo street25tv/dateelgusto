@@ -971,7 +971,11 @@ function addItem(o,pid,cant=1,nota=''){const p=prod(pid);if(!p||!p.disp)return;c
    Salen de la receta: cada insumo dice si en el plato se puede quitar ('q'), quitar o poner sin costo ('qp') o es fijo ('f').
    Lo que se quita no se descuenta del inventario; lo que se pone sí. Lo que se agrega con costo son los adicionales. */
 const OPC_INS=Object.fromEntries((INV_SUGERIDO.insumos||[]).map(i=>[i.id,i.opc||'']));
-const insOpc=i=>i.opc||OPC_INS[i.id]||'';
+// Insumo sin "En el plato": se adivina por el nombre (salsas y vegetales se quitan o se ponen gratis; quesos y carnes extra se quitan)
+const adivinaOpc=n=>{n=String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  if(/salsa|mayonesa|mostaza|ketchup|tartara|bbq|chimichurri|guacamole|cebolla|lechuga|tomate|repollo|pepinillo|aguacate|cilantro|jalapeno|picante/.test(n))return 'qp';
+  if(/queso|gratinado|tocineta|jamon|maiz|huevo|pimenton|suero|champi|platano|papita|ripio/.test(n))return 'q';return 'f'};
+const insOpc=i=>i.opc||OPC_INS[i.id]||adivinaOpc(i.nombre);
 // Cada fila de la receta puede traer r[2]=1 (se puede quitar) o 0 (va siempre). Sin ese dato decide el insumo.
 const quitable=(r,i)=>r[2]!==undefined&&r[2]!==null&&r[2]!==''?+r[2]===1:['q','qp'].includes(insOpc(i));
 const filaRec=r=>{const i=S.insumos.find(x=>x.id===r[0]);return [r[0],r[1],i&&quitable(r,i)?1:0]};
@@ -1752,6 +1756,7 @@ function renderModal(){
     const chip=(act,n,estado,txt,extra='')=>`<button type="button" class="ich ${estado}" data-act="${act}" data-id="${esc(n)}" aria-pressed="${estado==='on'||estado===''}"><span class="ick">${estado==='off'?'✕':estado==='opt'?'+':'✓'}</span>${esc(txt)}${extra}</button>`;
     h=`${head(esc(p.nombre)+(l.cant>1?' · '+l.cant+' und':''))}
     ${c.base.length?`<div class="per-h"><b>Ingredientes</b><span class="small muted">Toca para quitar</span></div><div class="ichs">${c.base.map(i=>chip('perSin',i.nombre,M.sin.includes(i.nombre)?'off':'',i.nombre)).join('')}</div>`:''}
+    ${(()=>{const fx=p.receta.filter(r=>{const i=S.insumos.find(x=>x.id===r[0]);return i&&!c.base.includes(i)}).map(r=>S.insumos.find(x=>x.id===r[0]).nombre);return fx.length&&c.base.length?`<p class="small muted" style="margin:6px 0 0">Siempre lleva: ${esc(fx.join(', '))}</p>`:''})()}
     ${c.extra.length?`<div class="per-h"><b>Poner sin costo</b></div><div class="ichs">${c.extra.map(i=>chip('perCon',i.nombre,M.con.includes(i.nombre)?'on':'opt',i.nombre)).join('')}</div>`:''}
     ${ads.length?`<div class="per-h"><b>Adicionales</b><span class="small muted">Suman al precio</span></div><div class="ichs">${ads.map(a=>chip('perExt',a.id,M.ext.includes(a.nombre)?'on':'opt',a.nombre,` <b class="ich-p">+${money(a.precio)}</b>`)).join('')}</div>`:''}
     ${!c.base.length&&p.receta.length===0?'<p class="small muted">Este plato aún no tiene receta. Ármala en Inventario › Platos y recetas para ver sus ingredientes.</p>':''}
@@ -1793,7 +1798,7 @@ function renderModal(){
       <label class="field"><span>Se mide en</span><select name="unidad" ${i?'disabled':''} id="insUnidad">${[['g','Peso (g / kg)'],['ml','Volumen (ml / L)'],['und','Unidades']].map(([k,n])=>`<option value="${k}" ${u===k?'selected':''}>${n}</option>`).join('')}</select></label>
       <div class="grid2"><label class="field"><span>Mínimo (${ug})</span><input name="min" type="number" min="0" step="any" inputmode="decimal" value="${i?+(i.min/FAC(u)).toFixed(3):''}" placeholder="${u==='und'?'20':'2'}"></label>
       <label class="field"><span>Costo por ${ug}</span><input name="costo" type="number" min="0" step="any" inputmode="numeric" value="${i&&i.costo?Math.round(i.costo*FAC(u)):''}" placeholder="${u==='und'?'1200':'18000'}"></label></div>
-      <label class="field"><span>En el plato</span><select name="opc">${[['f','Fijo: no se puede quitar'],['q','Se puede quitar'],['qp','Se puede quitar o poner sin costo']].map(([k,n])=>`<option value="${k}" ${(i?insOpc(i)||'f':'f')===k?'selected':''}>${n}</option>`).join('')}</select></label>
+      <label class="field"><span>En el plato</span><select name="opc" id="insOpc">${[['f','Fijo: no se puede quitar'],['q','Se puede quitar'],['qp','Se puede quitar o poner sin costo']].map(([k,n])=>`<option value="${k}" ${(i?insOpc(i)||'f':(M.opcV||adivinaOpc(M.nm||'')))===k?'selected':''}>${n}</option>`).join('')}</select></label>
       ${i?'':`<label class="field"><span>Existencia actual (${ug})</span><input name="stock" type="number" min="0" step="any" inputmode="decimal" placeholder="0"></label>`}
       <p class="small muted">Cuando la existencia baja del mínimo, el insumo sale en la lista de compras.${i?' Para cambiar la existencia usa "Contar" o "+ Entrada".':''}</p>
       <div class="row">${i?`<button type="button" class="btn danger" data-act="insumoBorrar" data-id="${i.id}" ${usos?`title="Lo usan ${usos} recetas"`:''}>Eliminar</button>`:''}<button class="btn primary big" style="flex:1">${i?'Guardar':'Crear insumo'}</button></div></form>`}
@@ -2129,6 +2134,8 @@ document.addEventListener('input',e=>{
   if(t.id==='contado'){S.contado=t.value;save();const ps=pagadasTurno().filter(o=>o.pago.metodo==='efectivo');const esp=S.config.base+ps.reduce((a,o)=>a+o.pago.total+o.pago.propina,0);document.getElementById('dif').innerHTML=difHTML(esp,+t.value.replace(/\D/g,''))}
   if(t.id==='invQ'){U.invQ=t.value;const y=scrollY;render();const q=document.getElementById('invQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}scrollTo(0,y)}
   if(t.id==='recQ'){U.recQ=t.value;const y=scrollY;render();const q=document.getElementById('recQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}scrollTo(0,y)}
+  if(t.name==='nombre'&&t.closest('form[data-form=insumo]')&&U.modal&&!U.modal.iid){U.modal.nm=t.value;const so=!U.modal.opcV&&document.getElementById('insOpc');if(so)so.value=adivinaOpc(t.value)}
+  if(t.id==='insOpc'&&U.modal)U.modal.opcV=t.value;
   if(t.dataset.pl&&U.modal&&U.modal.type==='receta'){const k=t.dataset.pl;U.modal.d[k]=t.value;if(k==='cat'||k==='est'){renderModal();return}if(k!=='precio')return}
   if((t.dataset.rec||t.dataset.pl)&&U.modal&&U.modal.type==='receta'){if(t.dataset.rec){const [k,f]=t.dataset.rec.split(':');const r=U.modal.rec[+k];if(r){if(f==='x'){r[2]=t.checked?1:0;t.closest('.rq')?.classList.toggle('on',t.checked);return}if(f==='q')r[1]=t.value;else{U.modal.rec[+k]=filaRec([t.value,r[1]]);renderModal();return}}}
     const base=(+U.modal.d.precio||0)/(1+S.config.impoconsumo/100);const c=U.modal.rec.reduce((a,[iid,q])=>{const i=S.insumos.find(x=>x.id===iid);return a+(i?i.costo*(+q||0):0)},0);const pc=base?c/base*100:0;
