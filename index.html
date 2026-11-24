@@ -1761,7 +1761,7 @@ function renderModal(){
     ${ads.length?`<div class="per-h"><b>Adicionales</b><span class="small muted">Suman al precio</span></div><div class="ichs">${ads.map(a=>chip('perExt',a.id,M.ext.includes(a.nombre)?'on':'opt',a.nombre,` <b class="ich-p">+${money(a.precio)}</b>`)).join('')}</div>`:''}
     ${!c.base.length&&p.receta.length===0?'<p class="small muted">Este plato aún no tiene receta. Ármala en Inventario › Platos y recetas para ver sus ingredientes.</p>':''}
     <div class="per-sum">${esc(modsTxt(M)||'Como viene en la carta')}</div>
-    <div class="row"><button class="btn" data-act="perLimpiar">Como viene</button><button class="btn primary big" data-act="perGuardar" style="flex:1">Guardar · ${money(pu*l.cant)}</button></div>`}
+    <div class="row"><button class="btn" data-act="perLimpiar">Como viene</button><button class="btn primary big" data-act="perGuardar" style="flex:1">Listo · ${money(pu*l.cant)}</button></div>`}
   if(M.type==='nuevoPedido'){
     h=`${head('Nuevo pedido')}<form data-form="pedido" class="panel">
       <div class="radio"><label><input type="radio" name="tipo" value="domicilio" checked> Domicilio</label><label><input type="radio" name="tipo" value="llevar"> Para llevar</label></div>
@@ -1854,6 +1854,11 @@ function cambioHTML(rec,pagar){if(!rec)return '<span class="muted small">Sin val
 const confirmar=(title,text,ok,fn,danger)=>{U.modal={type:'confirm',title,text,ok,fn,danger};renderModal()};
 
 /* ---------- eventos ---------- */
+// Cada toque en "Ingredientes y adicionales" queda guardado en la línea al instante: si cierran la ventana sin "Listo", no se pierde
+function perAplicar(M){const l=ord(U.active)?.items.find(x=>x.id===M.lid);const p=l&&prod(l.pid);if(!l||!p||l.env)return null;
+  l.sin=M.sin.slice();l.con=M.con.slice();l.ext=M.ext.slice();l.mods=!!(l.sin.length||l.con.length||l.ext.length);
+  l.precio=p.precio+l.ext.reduce((a,n)=>a+(S.productos.find(x=>x.nombre===n&&x.cat===catAdic())?.precio||0),0);
+  save();render();return l}
 const ACT={
   nav:id=>{U.view=id;U.active=null;U.q='';render();document.querySelector('.main').scrollTop=0},
   zona:id=>{U.zona=id;render()},
@@ -1866,14 +1871,11 @@ const ACT={
   dec:id=>{const o=ord(U.active);const l=o.items.find(x=>x.id===id);l.cant--;if(l.cant<=0)o.items=o.items.filter(x=>x!==l);save();render()},
   nota:id=>{U.modal={type:'nota',lid:id};renderModal();setTimeout(()=>document.getElementById('notaTxt')?.focus(),30)},
   personalizar:id=>{const l=ord(U.active)?.items.find(x=>x.id===id);if(!l)return;U.modal={type:'personalizar',lid:id,sin:[...(l.sin||[])],con:[...(l.con||[])],ext:[...(l.ext||[])]};renderModal()},
-  perSin:n=>{const M=U.modal;M.sin=M.sin.includes(n)?M.sin.filter(x=>x!==n):[...M.sin,n];renderModal()},
-  perCon:n=>{const M=U.modal;M.con=M.con.includes(n)?M.con.filter(x=>x!==n):[...M.con,n];renderModal()},
-  perExt:id=>{const a=prod(id);if(!a)return;const M=U.modal;M.ext=M.ext.includes(a.nombre)?M.ext.filter(x=>x!==a.nombre):[...M.ext,a.nombre];renderModal()},
-  perLimpiar:()=>{const M=U.modal;M.sin=[];M.con=[];M.ext=[];renderModal()},
-  perGuardar:()=>{const M=U.modal;const l=ord(U.active)?.items.find(x=>x.id===M.lid);const p=l&&prod(l.pid);if(!l||!p)return;
-    l.sin=M.sin.slice();l.con=M.con.slice();l.ext=M.ext.slice();l.mods=!!(l.sin.length||l.con.length||l.ext.length);
-    l.precio=p.precio+l.ext.reduce((a,n)=>a+(S.productos.find(x=>x.nombre===n&&x.cat===catAdic())?.precio||0),0);
-    save();U.modal=null;render();toast(l.mods?p.nombre+': '+modsTxt(l):p.nombre+' como viene en la carta')},
+  perSin:n=>{const M=U.modal;M.sin=M.sin.includes(n)?M.sin.filter(x=>x!==n):[...M.sin,n];perAplicar(M);renderModal()},
+  perCon:n=>{const M=U.modal;M.con=M.con.includes(n)?M.con.filter(x=>x!==n):[...M.con,n];perAplicar(M);renderModal()},
+  perExt:id=>{const a=prod(id);if(!a)return;const M=U.modal;M.ext=M.ext.includes(a.nombre)?M.ext.filter(x=>x!==a.nombre):[...M.ext,a.nombre];perAplicar(M);renderModal()},
+  perLimpiar:()=>{const M=U.modal;M.sin=[];M.con=[];M.ext=[];perAplicar(M);renderModal()},
+  perGuardar:()=>{const M=U.modal;const l=perAplicar(M);if(!l)return;U.modal=null;render();toast(l.mods?l.nombre+': '+modsTxt(l):l.nombre+' como viene en la carta')},
   notaChip:(id)=>{const t=document.getElementById('notaTxt');t.value=t.value?t.value.replace(/\s*$/,'')+', '+id:id},
   enviar:()=>{const o=ord(U.active);const n=enviarCocina(o);save();render();if(n&&n.length)toast('Comanda '+n.map(x=>'#'+x).join(' y ')+' enviada');else toast('Productos registrados')},
   enviarPedido:id=>{const n=enviarCocina(ord(id));save();render();if(n.length)toast('Comanda '+n.map(x=>'#'+x).join(' y ')+' enviada')},
