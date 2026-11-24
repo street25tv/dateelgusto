@@ -176,6 +176,14 @@ body.lock{overflow:hidden}
 @keyframes fade{from{opacity:0}}
 /* pasos del pedido web */
 .mods{font-size:.84rem;color:var(--muted)}
+.mds{display:flex;flex-direction:column;gap:3px;margin-top:4px}
+.md{display:block;font-size:.8rem;font-weight:600;line-height:1.3;padding:3px 7px;border-radius:6px;border-left:3px solid;font-style:normal}
+.md b{font-size:.66rem;letter-spacing:.08em;margin-right:4px;font-weight:800}
+.md-sin{color:var(--bad,#B42318);border-color:var(--bad,#B42318);background:color-mix(in srgb,var(--bad,#B42318) 11%,transparent)}
+.md-con{color:var(--accent,#1D6A4C);border-color:var(--accent,#1D6A4C);background:color-mix(in srgb,var(--accent,#1D6A4C) 11%,transparent)}
+.md-ext{color:var(--info,#2457A6);border-color:var(--info,#2457A6);background:color-mix(in srgb,var(--info,#2457A6) 11%,transparent)}
+.md-nota{color:var(--warn,#9A6212);border-color:var(--warn,#9A6212);background:color-mix(in srgb,var(--warn,#9A6212) 11%,transparent)}
+
 .lnk{border:0;background:none;padding:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:inherit}
 .card h3{display:flex;align-items:center}
 .nstep{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:.8rem;margin-right:8px;flex:none}
@@ -258,6 +266,12 @@ const gruposP=p=>p.cond?(p.cond.extra.length?[{n:'Agrégale sin costo',items:p.c
 const tieneOpc=p=>ingP(p).length>0||extrasDe(p).length>0||gruposP(p).length>0;
 const unit=l=>{const p=prod(l.pid);return p?p.precio+l.ext.reduce((a,id)=>a+(prod(id)?.precio||0),0):0};
 const minus=x=>/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(x)?x[0].toLowerCase()+x.slice(1):x;
+// Lo que el cliente cambió, separado para que cocina no se equivoque: SIN (quitar), PONER (agregar gratis), ADICIONAL (con costo), NOTA
+function modsPartes(t){const r=[];String(t||'').split(' · ').map(x=>x.trim()).filter(Boolean).forEach(x=>{
+  const p=/^Sin /.test(x)?{k:'sin',t:x.slice(4)}:/^Con /.test(x)?{k:'con',t:x.slice(4)}:/^\+ /.test(x)?{k:'ext',t:x.slice(2)}:{k:'nota',t:x};
+  const prev=r[r.length-1];if(prev&&prev.k===p.k&&p.k!=='nota')prev.t+=', '+p.t;else r.push(p)});return r}
+const MOD_N={sin:'SIN',con:'PONER',ext:'ADICIONAL',nota:'NOTA'};
+const modsHTML=t=>{const p=modsPartes(t);return p.length?`<span class="mds">${p.map(x=>`<span class="md md-${x.k}"><b>${MOD_N[x.k]}</b> ${esc(x.t)}</span>`).join('')}</span>`:''};
 const modsTxt=l=>[l.sin.length?'Sin '+l.sin.map(minus).join(', '):'',(l.con||[]).length?'Con '+l.con.map(minus).join(', '):'',...l.ext.map(id=>'+ '+(prod(id)?.nombre||'')),(l.nota||'').trim()].filter(Boolean).join(' · ');
 const cartN=()=>st.cart.reduce((a,l)=>a+l.cant,0);
 const cartT=()=>st.cart.reduce((a,l)=>a+unit(l)*l.cant,0);
@@ -430,7 +444,7 @@ function vCarrito(){
   return `<div class="wrap page">
     <button class="back" data-a="menu">← Seguir pidiendo</button>
     <h2>Tu pedido${m.mesa?' · Mesa '+esc(m.mesa.nombre):''}</h2>
-    <div class="card">${st.cart.map(l=>{const p=prod(l.pid);if(!p)return '';const mt=modsTxt(l);return `<div class="line"><div><div class="nm">${esc(p.nombre)}</div>${mt?`<div class="mods">${esc(mt)}</div>`:''}<div class="lp">${money(unit(l))} c/u · ${money(unit(l)*l.cant)}${tieneOpc(p)?` · <button class="lnk" data-a="editar" data-v="${esc(l.k)}">Cambiar</button>`:''}</div></div>
+    <div class="card">${st.cart.map(l=>{const p=prod(l.pid);if(!p)return '';const mt=modsTxt(l);return `<div class="line"><div><div class="nm">${esc(p.nombre)}</div>${mt?modsHTML(mt):''}<div class="lp">${money(unit(l))} c/u · ${money(unit(l)*l.cant)}${tieneOpc(p)?` · <button class="lnk" data-a="editar" data-v="${esc(l.k)}">Cambiar</button>`:''}</div></div>
       <div class="step"><button data-a="lDec" data-v="${esc(l.k)}" aria-label="Quitar uno">−</button><span>${l.cant}</span><button data-a="lInc" data-v="${esc(l.k)}" aria-label="Agregar uno">+</button></div></div>`}).join('')}</div>
     ${web?pasosWeb():''}
     <div class="card sum">

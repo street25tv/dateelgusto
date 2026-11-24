@@ -199,6 +199,14 @@ h3{font-size:1rem;font-weight:700}
 .l-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
 .l-per{background:var(--accent-soft);color:var(--fg);border:1px solid var(--accent);border-radius:999px;padding:5px 12px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
 .l-mods{font-size:.8rem;color:var(--fg);font-weight:600}
+.mds{display:flex;flex-direction:column;gap:3px;margin-top:4px}
+.md{display:block;font-size:.8rem;font-weight:600;line-height:1.3;padding:3px 7px;border-radius:6px;border-left:3px solid;font-style:normal}
+.md b{font-size:.66rem;letter-spacing:.08em;margin-right:4px;font-weight:800}
+.md-sin{color:var(--bad);border-color:var(--bad);background:color-mix(in srgb,var(--bad) 11%,transparent)}
+.md-con{color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 11%,transparent)}
+.md-ext{color:var(--info);border-color:var(--info);background:color-mix(in srgb,var(--info) 11%,transparent)}
+.md-nota{color:var(--warn);border-color:var(--warn);background:color-mix(in srgb,var(--warn) 11%,transparent)}
+
 .per-h{display:flex;align-items:baseline;gap:8px;margin-top:4px}.ichs{display:flex;flex-wrap:wrap;gap:8px}
 .ich{display:inline-flex;align-items:center;gap:6px;min-height:44px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:6px 14px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer}
 .ich .ick{font-weight:800;color:var(--accent)}.ich.off{opacity:.55;text-decoration:line-through}.ich.off .ick{color:var(--bad)}
@@ -797,7 +805,7 @@ function comandaBytes(c,reimp){
   if(o&&o.mesero&&!['Web','QR'].includes(o.mesero))t.wrap('Mesero: '+o.mesero);
   if(o&&o.cliente&&tipo!=='mesa')t.wrap('Cliente: '+o.cliente);
   t.al(0).hr();
-  c.items.forEach(i=>{t.tam(1).neg(1).wrap(i.nombre,i.cant+' x ').neg(0).tam(0);if(i.nota)t.wrap(i.nota,'   > ')});
+  c.items.forEach(i=>{t.tam(1).neg(1).wrap(i.nombre,i.cant+' x ').neg(0).tam(0);modsPartes(i.nota).forEach(x=>{if(x.k!=='nota')t.neg(1);t.wrap(x.t,'  '+(x.k==='ext'?'+':MOD_N[x.k]+':')+' ');t.neg(0)})});
   t.hr();if(o&&tipo==='mesa')t.al(1).ln('Pedido '+o.num);
   return t.fin(4).bytes();
 }
@@ -991,6 +999,12 @@ const adicionalesDe=p=>!p||p.est!=='cocina'||p.cat===catAdic()?[]:S.productos.fi
 const tieneCond=l=>{const p=prod(l.pid);return condDe(p).base.length>0||adicionalesDe(p).length>0};
 const minusc=x=>/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(x)?x[0].toLowerCase()+x.slice(1):x;
 const modsTxt=l=>[(l.sin||[]).length?'Sin '+l.sin.map(minusc).join(', '):'',(l.con||[]).length?'Con '+l.con.map(minusc).join(', '):'',...(l.ext||[]).map(n=>'+ '+n)].filter(Boolean).join(' · ');
+// Lo que el cliente cambió, separado para que cocina no se equivoque: SIN (quitar), PONER (agregar gratis), ADICIONAL (con costo), NOTA
+function modsPartes(t){const r=[];String(t||'').split(' · ').map(x=>x.trim()).filter(Boolean).forEach(x=>{
+  const p=/^Sin /.test(x)?{k:'sin',t:x.slice(4)}:/^Con /.test(x)?{k:'con',t:x.slice(4)}:/^\+ /.test(x)?{k:'ext',t:x.slice(2)}:{k:'nota',t:x};
+  const prev=r[r.length-1];if(prev&&prev.k===p.k&&p.k!=='nota')prev.t+=', '+p.t;else r.push(p)});return r}
+const MOD_N={sin:'SIN',con:'PONER',ext:'ADICIONAL',nota:'NOTA'};
+const modsHTML=t=>{const p=modsPartes(t);return p.length?`<span class="mds">${p.map(x=>`<span class="md md-${x.k}"><b>${MOD_N[x.k]}</b> ${esc(x.t)}</span>`).join('')}</span>`:''};
 const nrm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 const ALIAS_INS={'pina':'s-pina','salsa pina':'s-pina','rosada':'s-rosada','mayo':'s-mayo','mostaza':'s-mostaza','papita ripio':'ripio','ripio':'ripio','papita':'ripio','gratinado':'mozzarella','queso mozzarella':'mozzarella','queso':'costeno'};
 const insDeNombre=n=>{const k=nrm(n);return S.insumos.find(i=>nrm(i.nombre)===k)||S.insumos.find(i=>i.id===ALIAS_INS[k])};
@@ -1137,7 +1151,7 @@ function gridHTML(){
 }
 function lineHTML(l){
   return `<div class="line ${l.env?'sent':''}">
-    <div class="l-main"><span class="l-n">${esc(l.nombre)}</span>${l.mods&&modsTxt(l)?`<span class="l-mods">${esc(modsTxt(l))}</span>`:''}${l.nota?`<span class="l-nota">${esc(l.nota)}</span>`:''}${l.est?`<span class="l-st">${l.env?'Enviado':'Sin enviar'}</span>`:''}</div>
+    <div class="l-main"><span class="l-n">${esc(l.nombre)}</span>${modsHTML([l.mods?modsTxt(l):'',l.nota].filter(Boolean).join(' · '))}${l.est?`<span class="l-st">${l.env?'Enviado':'Sin enviar'}</span>`:''}</div>
     <div class="qty">${l.env?`<span class="q-fixed">${l.cant}×</span>`:`<button data-act="dec" data-id="${l.id}" aria-label="Quitar uno">−</button><span>${l.cant}</span><button data-act="inc" data-id="${l.id}" aria-label="Agregar uno">+</button>`}</div>
     <div class="l-p">${money(l.precio*l.cant)}</div>
     ${!l.env&&l.est?`<div class="l-acts">${tieneCond(l)?`<button class="l-per" data-act="personalizar" data-id="${l.id}">${l.mods?'Cambiar ingredientes':'Ingredientes y adicionales'}</button>`:''}<button class="l-nb" data-act="nota" data-id="${l.id}">${l.nota?'Editar nota':'Agregar nota para cocina'}</button></div>`:''}
@@ -1187,7 +1201,7 @@ function tkHTML(c){
   const svc={mesa:'En mesa',domicilio:'Domicilio',llevar:'Para llevar'}[tipo]+(c.origen==='qr'||o?.mesero==='QR'?' · QR':c.origen==='web'?' · Web':'');
   return `<article class="tk"><header><span class="tk-num">#${c.num}</span><span class="tk-for">${esc(o?label(o):'')}</span><span class="tk-time ${m>=15?'late':m>=10?'slow':''}" data-since="${c.t}" data-kds="1">${clock(c.t)}</span></header>
     <div class="tk-meta"><span class="svc svc-${tipo}">${svc}</span><span>${c.est==='barra'?'Barra':'Cocina'}</span>${o?`<span>${esc(o.mesero)}</span>`:''}${IMP.modo?`<button class="lnk" data-act="impComanda" data-id="${c.id}">🖨️ Reimprimir</button>`:''}</div>
-    <ul>${c.items.map(i=>`<li><b>${i.cant}×</b><span>${esc(i.nombre)}${i.nota?`<em>${esc(i.nota)}</em>`:''}</span></li>`).join('')}</ul>
+    <ul>${c.items.map(i=>`<li><b>${i.cant}×</b><span>${esc(i.nombre)}${modsHTML(i.nota)}</span></li>`).join('')}</ul>
     <button class="btn ${c.estado==='nuevo'?'primary':c.estado==='prep'?'ok':''} block" data-act="bump" data-id="${c.id}">${{nuevo:'Empezar',prep:'Marcar lista',listo:'Entregada'}[c.estado]}</button></article>`;
 }
 function vCocina(){
@@ -1278,7 +1292,7 @@ function verifHTML(o){
     ${v.ref?`<span class="small muted">Ref. ${esc(v.ref)}</span>`:''}<button class="lnk small" data-act="reverificar" data-id="${o.id}">Volver a verificar</button></div>`;
 }
 const puedeAprobar=()=>{const u=yo();return !!u&&['admin','caja'].includes(u.rol)};
-const itemsTxt=o=>o.items.filter(l=>l.est).map(l=>`<div>${l.cant}× ${esc(l.nombre)}${l.nota?` <span class="muted">· ${esc(l.nota)}</span>`:''}</div>`).join('')||'Sin productos';
+const itemsTxt=o=>o.items.filter(l=>l.est).map(l=>`<div>${l.cant}× ${esc(l.nombre)}${modsHTML(l.nota)}</div>`).join('')||'Sin productos';
 // Con cuánto paga en efectivo y cuánto cambio hay que llevar
 const cambioPed=o=>{const t=total(o),pc=+o.pagaCon||0;return pc>t?`Paga con <b>${money(pc)}</b> · lleva <b>${money(pc-t)}</b> de cambio`:'Paga exacto, sin cambio'};
 const cobroTxt=o=>o.estado==='pagada'?`<span class="pill ok">Pagado · ${MET[o.pago.metodo]||esc(o.pago.metodo)}</span>`:`<span class="pill warn">Cobrar ${money(total(o))}${o.pagoPreferido?' · '+(MET[o.pagoPreferido]||esc(o.pagoPreferido)):''}</span>`;
